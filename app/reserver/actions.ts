@@ -106,7 +106,9 @@ export async function reserver(
 
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com";
 
-  await Promise.all([
+  // On journalise le sort de chaque email : un échec se diagnostique
+  // ensuite depuis Supabase, sans fouiller les journaux de Vercel.
+  const [emailEleve, emailPauline] = await Promise.all([
     confirmationReservation({
       destinataire: email,
       prenom,
@@ -125,6 +127,18 @@ export async function reserver(
       premiere: !existant,
     }),
   ]);
+
+  await supabase.from("journal").insert({
+    acteur: "systeme",
+    dossier_id: dossierId,
+    objet: "email",
+    action: emailEleve.ok ? "confirmation_envoyee" : "confirmation_echouee",
+    details: {
+      destinataire: email,
+      confirmation: emailEleve.ok ? `ok ${emailEleve.detail}` : emailEleve.detail,
+      alerte_pauline: emailPauline.ok ? `ok ${emailPauline.detail}` : emailPauline.detail,
+    },
+  });
 
   redirect(`/reserver/confirmation?debut=${encodeURIComponent(debut)}`);
 }

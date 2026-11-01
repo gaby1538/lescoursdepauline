@@ -12,20 +12,22 @@ import { creneauLong } from "./dates";
 
 const API = "https://api.resend.com/emails";
 
+export type ResultatEnvoi = { ok: boolean; detail: string };
+
 async function envoyer(options: {
   destinataire: string;
   sujet: string;
   html: string;
   repondreA?: string;
-}): Promise<void> {
+}): Promise<ResultatEnvoi> {
   const cle = process.env.RESEND_API_KEY;
   const expediteur =
     process.env.EMAIL_EXPEDITEUR ??
     `Les cours de Pauline <contact@lescoursdepauline.com>`;
 
   if (!cle) {
-    console.warn("RESEND_API_KEY absente — email non envoyé :", options.sujet);
-    return;
+    console.warn("[email] RESEND_API_KEY absente — non envoyé :", options.sujet);
+    return { ok: false, detail: "cle_absente" };
   }
 
   try {
@@ -43,11 +45,25 @@ async function envoyer(options: {
         reply_to: options.repondreA ?? IDENTITE.email,
       }),
     });
+
+    const corps = await reponse.text();
+
     if (!reponse.ok) {
-      console.error("Resend", reponse.status, await reponse.text());
+      console.error("[email] refusé par Resend", reponse.status, corps);
+      return { ok: false, detail: `resend_${reponse.status}: ${corps.slice(0, 300)}` };
     }
+
+    let id = "";
+    try {
+      id = (JSON.parse(corps) as { id?: string }).id ?? "";
+    } catch {
+      /* réponse inattendue mais acceptée : on garde l'essentiel */
+    }
+    console.log("[email] envoyé", options.sujet, id);
+    return { ok: true, detail: id };
   } catch (erreur) {
-    console.error("Resend injoignable", erreur);
+    console.error("[email] Resend injoignable", erreur);
+    return { ok: false, detail: `injoignable: ${String(erreur).slice(0, 300)}` };
   }
 }
 
@@ -104,7 +120,7 @@ export async function confirmationReservation(options: {
   debut: string;
   lienVisio: string | null;
   lienConfirmation: string | null;
-}): Promise<void> {
+}): Promise<ResultatEnvoi> {
   const quand = creneauLong(options.debut);
 
   const blocVisio = options.lienVisio
@@ -123,7 +139,7 @@ export async function confirmationReservation(options: {
          Ce n'est pas obligatoire.</p>`
     : "";
 
-  await envoyer({
+  return envoyer({
     destinataire: options.destinataire,
     sujet: `Votre cours de SVT — ${quand}`,
     html: gabarit(
@@ -151,8 +167,8 @@ export async function alerteNouvelleReservation(options: {
   debut: string;
   sujet: string | null;
   premiere: boolean;
-}): Promise<void> {
-  await envoyer({
+}): Promise<ResultatEnvoi> {
+  return envoyer({
     destinataire: IDENTITE.email,
     sujet: `${options.premiere ? "Nouvel élève" : "Réservation"} — ${creneauLong(options.debut)}`,
     html: gabarit(
