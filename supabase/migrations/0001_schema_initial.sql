@@ -502,7 +502,7 @@ begin
      and old.debut < now() + make_interval(hours => p.delai_annulation_h) then
     new.statut := 'annulee_hors_delai';
   end if;
-  if new.statut <> old.statut and new.statut like 'annulee%' then
+  if new.statut <> old.statut and new.statut::text like 'annulee%' then
     new.annule_le := now();
   end if;
   return new;
@@ -519,7 +519,7 @@ returns text language plpgsql as $$
 declare
   annee_courante int := extract(year from now());
   suivant int;
-  numero text;
+  v_numero text;
 begin
   insert into compteur_factures (annee, dernier) values (annee_courante, 0)
     on conflict (annee) do nothing;
@@ -529,17 +529,17 @@ begin
    where annee = annee_courante
   returning dernier into suivant;
 
-  numero := annee_courante || '-' || lpad(suivant::text, 3, '0');
+  v_numero := annee_courante || '-' || lpad(suivant::text, 3, '0');
 
   update factures
-     set numero = numero,
+     set numero = v_numero,
          statut = 'envoyee',
          emise_le = current_date,
          echeance_le = current_date
                      + (select delai_paiement_jours from parametres where id)
    where id = facture and statut = 'brouillon';
 
-  return numero;
+  return v_numero;
 end;
 $$;
 
