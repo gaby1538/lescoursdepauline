@@ -1,29 +1,49 @@
 import type { Metadata } from "next";
-import { IDENTITE } from "@/lib/constantes";
+import Calendrier from "@/components/Calendrier";
+import { creneauxDeLaSemaine } from "@/lib/reservations";
+import { lundiDeLaSemaine, ajouterJours } from "@/lib/dates";
 
 export const metadata: Metadata = { title: "Réserver un créneau" };
+export const dynamic = "force-dynamic";
 
-export default function Reserver() {
+export default async function Reserver({
+  searchParams,
+}: {
+  searchParams: Promise<{ semaine?: string }>;
+}) {
+  const params = await searchParams;
+  const semaineCourante = lundiDeLaSemaine();
+  const demandee = params.semaine;
+
+  const lundi =
+    demandee && /^\d{4}-\d{2}-\d{2}$/.test(demandee) && demandee >= semaineCourante
+      ? demandee
+      : semaineCourante;
+
+  const jours = Array.from({ length: 7 }, (_, i) => ajouterJours(lundi, i));
+  const creneauxParJour = await creneauxDeLaSemaine(lundi);
+
   return (
     <section className="section">
-      <div className="conteneur-etroit" style={{ textAlign: "center" }}>
-        <p className="surtitre">Réservation</p>
-        <h1 style={{ fontSize: 46, lineHeight: 1.1 }}>
-          Choisissez un <em className="accent">créneau</em>
-        </h1>
-        <p className="plomb" style={{ margin: "18px auto 32px", maxWidth: 560 }}>
-          Le calendrier arrive à l&apos;étape suivante du développement. En
-          attendant, écrivez-moi : je réponds vite et le premier échange est
-          gratuit.
-        </p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, justifyContent: "center" }}>
-          <a href={IDENTITE.whatsapp} className="bouton bouton--principal">
-            Écrire sur WhatsApp
-          </a>
-          <a href={`mailto:${IDENTITE.email}`} className="bouton bouton--secondaire">
-            {IDENTITE.email}
-          </a>
+      <div className="conteneur">
+        <div style={{ textAlign: "center", marginBottom: 44 }}>
+          <p className="surtitre">Réservation</p>
+          <h1 style={{ fontSize: 46, lineHeight: 1.1 }}>
+            Choisissez un <em className="accent">créneau</em>
+          </h1>
+          <p className="plomb" style={{ margin: "18px auto 0", maxWidth: 560 }}>
+            Les créneaux affichés sont réellement libres. Rien à payer ici : la facture
+            arrive en fin de mois.
+          </p>
         </div>
+
+        <Calendrier
+          lundi={lundi}
+          jours={jours}
+          creneauxParJour={creneauxParJour}
+          semainePrecedente={lundi > semaineCourante ? ajouterJours(lundi, -7) : null}
+          semaineSuivante={ajouterJours(lundi, 7)}
+        />
       </div>
     </section>
   );

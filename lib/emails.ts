@@ -1,0 +1,179 @@
+import "server-only";
+import { IDENTITE } from "./constantes";
+import { creneauLong } from "./dates";
+
+/**
+ * Envoi par l'API Resend, en fetch direct — inutile d'ajouter une
+ * dépendance pour deux requêtes POST.
+ *
+ * Si la clé n'est pas configurée, on journalise et on continue : une
+ * réservation ne doit jamais échouer parce que l'email ne part pas.
+ */
+
+const API = "https://api.resend.com/emails";
+
+async function envoyer(options: {
+  destinataire: string;
+  sujet: string;
+  html: string;
+  repondreA?: string;
+}): Promise<void> {
+  const cle = process.env.RESEND_API_KEY;
+  const expediteur =
+    process.env.EMAIL_EXPEDITEUR ??
+    `Les cours de Pauline <contact@lescoursdepauline.com>`;
+
+  if (!cle) {
+    console.warn("RESEND_API_KEY absente — email non envoyé :", options.sujet);
+    return;
+  }
+
+  try {
+    const reponse = await fetch(API, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${cle}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: expediteur,
+        to: [options.destinataire],
+        subject: options.sujet,
+        html: options.html,
+        reply_to: options.repondreA ?? IDENTITE.email,
+      }),
+    });
+    if (!reponse.ok) {
+      console.error("Resend", reponse.status, await reponse.text());
+    }
+  } catch (erreur) {
+    console.error("Resend injoignable", erreur);
+  }
+}
+
+// ---------------------------------------------------------------------
+//  Gabarit commun
+// ---------------------------------------------------------------------
+
+function gabarit(titre: string, corps: string): string {
+  return `
+<!doctype html>
+<html lang="fr"><body style="margin:0;background:#f5f1e8;padding:32px 16px;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  color:#3c473a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr><td align="center">
+      <table role="presentation" width="100%" style="max-width:560px;background:#fcfaf5;
+        border:1px solid #e2dbca;border-radius:6px;" cellpadding="0" cellspacing="0">
+        <tr><td style="padding:32px 32px 0;">
+          <p style="margin:0;font-size:20px;color:#143a24;">
+            Les cours de <span style="color:#8a5e0c;">Pauline</span>
+          </p>
+        </td></tr>
+        <tr><td style="padding:24px 32px 32px;">
+          <h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#143a24;">${titre}</h1>
+          ${corps}
+        </td></tr>
+      </table>
+      <p style="max-width:560px;margin:20px auto 0;font-size:12px;color:#55604f;text-align:center;">
+        ${IDENTITE.raisonSociale} — ${IDENTITE.exploitante} · SIRET ${IDENTITE.siret}<br>
+        ${IDENTITE.email} · ${IDENTITE.telephoneAffiche}
+      </p>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+function bouton(lien: string, libelle: string): string {
+  return `<p style="margin:24px 0;">
+    <a href="${lien}" style="display:inline-block;background:#143a24;color:#ffffff;
+      text-decoration:none;padding:14px 26px;border-radius:4px;font-size:14px;
+      font-weight:600;letter-spacing:0.08em;text-transform:uppercase;">${libelle}</a>
+  </p>`;
+}
+
+const P = `margin:0 0 14px;font-size:15px;line-height:1.6;`;
+
+// ---------------------------------------------------------------------
+//  Les messages
+// ---------------------------------------------------------------------
+
+export async function confirmationReservation(options: {
+  destinataire: string;
+  prenom: string;
+  debut: string;
+  lienVisio: string | null;
+  lienConfirmation: string | null;
+}): Promise<void> {
+  const quand = creneauLong(options.debut);
+
+  const blocVisio = options.lienVisio
+    ? `<p style="${P}">Le lien pour nous retrouver :<br>
+         <a href="${options.lienVisio}" style="color:#8a5e0c;">${options.lienVisio}</a></p>`
+    : `<p style="${P}">Je vous enverrai le lien de connexion avant la séance.</p>`;
+
+  const blocConfirmation = options.lienConfirmation
+    ? `<hr style="border:none;border-top:1px solid #ede7d9;margin:28px 0;">
+       <p style="${P}"><strong>Une dernière chose.</strong> Confirmez votre adresse en
+         cliquant ci-dessous : cela me garantit que vous recevez bien mes messages, et
+         cela vous permettra de réserver d'autres cours.</p>
+       ${bouton(options.lienConfirmation, "Confirmer mon adresse")}
+       <p style="${P}font-size:13px;color:#55604f;">Le même lien vous permettra
+         ensuite de choisir un mot de passe pour votre espace, si vous le souhaitez.
+         Ce n'est pas obligatoire.</p>`
+    : "";
+
+  await envoyer({
+    destinataire: options.destinataire,
+    sujet: `Votre cours de SVT — ${quand}`,
+    html: gabarit(
+      "C'est noté",
+      `<p style="${P}">Bonjour ${options.prenom},</p>
+       <p style="${P}">Votre cours est réservé pour le <strong>${quand}</strong>,
+         en visioconférence, pour une heure.</p>
+       ${blocVisio}
+       <p style="${P}">Vous pouvez annuler ou déplacer jusqu'à 24 heures avant la
+         séance, sans frais. Au-delà, la séance est due.</p>
+       <p style="${P}">Il n'y a rien à régler maintenant : je vous enverrai une
+         facture en fin de mois.</p>
+       ${blocConfirmation}
+       <p style="${P}">À bientôt,<br>Pauline</p>`
+    ),
+  });
+}
+
+export async function alerteNouvelleReservation(options: {
+  prenomClient: string;
+  nomClient: string;
+  emailClient: string;
+  eleve: string;
+  classe: string;
+  debut: string;
+  sujet: string | null;
+  premiere: boolean;
+}): Promise<void> {
+  await envoyer({
+    destinataire: IDENTITE.email,
+    sujet: `${options.premiere ? "Nouvel élève" : "Réservation"} — ${creneauLong(options.debut)}`,
+    html: gabarit(
+      options.premiere ? "Un nouvel élève a réservé" : "Nouvelle réservation",
+      `<p style="${P}"><strong>${creneauLong(options.debut)}</strong></p>
+       <p style="${P}">
+         ${options.prenomClient} ${options.nomClient} — ${options.emailClient}<br>
+         Élève : ${options.eleve}, ${options.classe}
+       </p>
+       ${
+         options.sujet
+           ? `<p style="${P}">Ce qu'il souhaite travailler :<br><em>${options.sujet}</em></p>`
+           : ""
+       }
+       ${
+         options.premiere
+           ? `<p style="${P}font-size:13px;color:#55604f;">Premier cours de ce dossier.
+                Tant que l'adresse n'est pas confirmée, il ne peut pas réserver
+                davantage.</p>`
+           : ""
+       }`
+    ),
+  });
+}
