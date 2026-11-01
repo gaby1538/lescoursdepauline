@@ -219,3 +219,104 @@ table.tarifs tbody tr + tr { border-top: 1px solid var(--bordure-douce); }
   h1 { font-size: 36px !important; }
   h2 { font-size: 28px !important; }
 }
+
+/* ------------------------------------------------------------------ */
+/*  Réservation : jours et horaires                                    */
+/* ------------------------------------------------------------------ */
+
+.jours {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.jour {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 14px 6px;
+  border: 1px solid var(--bordure);
+  border-radius: 6px;
+  background: var(--carte);
+  font-family: inherit;
+  color: var(--texte);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.jour:hover:not(:disabled) { border-color: var(--foret); }
+
+.jour:disabled { opacity: 0.45; cursor: default; }
+
+.jour--actif,
+.jour--actif:hover { background: var(--foret); border-color: var(--foret); }
+.jour--actif .jour__nom,
+.jour--actif .jour__numero,
+.jour--actif .jour__compte { color: #fff; }
+
+.jour__nom {
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--texte-gris);
+}
+
+.jour__numero {
+  font-family: var(--serif);
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--foret);
+}
+
+.jour__compte { font-size: 11.5px; color: var(--texte-gris); }
+
+.horaires { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.horaire {
+  min-width: 86px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--bordure);
+  border-radius: 4px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--foret);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.horaire:hover { border-color: var(--foret); }
+
+.horaire--actif,
+.horaire--actif:hover {
+  background: var(--foret);
+  border-color: var(--foret);
+  color: #fff;
+  font-weight: 600;
+}
+
+.champs {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.alerte {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 4px;
+  background: #f7efdc;
+  border: 1px solid #dec89b;
+  color: #4a3206;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+@media (max-width: 760px) {
+  .jours { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .champs { grid-template-columns: 1fr; }
+  .horaire { min-width: 76px; flex: 1 1 76px; }
+}
