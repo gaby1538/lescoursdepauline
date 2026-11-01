@@ -24,7 +24,7 @@ export default function Entete() {
               {lien.libelle}
             </Link>
           ))}
-          <Link href="/reserver" className="bouton bouton--principal bouton--compact">
+          <Link href="/reserver" className="bouton bouton--blanc bouton--compact">
             Réserver
           </Link>
         </nav>
