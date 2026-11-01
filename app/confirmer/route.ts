@@ -33,5 +33,6 @@ export async function GET(requete: NextRequest) {
     action: "email_confirme",
   });
 
-  return NextResponse.redirect(`${site}/confirmer/resultat?etat=ok`);
+  const reinit = requete.nextUrl.searchParams.get("reinit") === "1" ? "&reinit=1" : "";
+  return NextResponse.redirect(`${site}/activer?token=${token}${reinit}`);
 }

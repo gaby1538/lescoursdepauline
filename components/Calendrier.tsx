@@ -5,7 +5,15 @@ import Link from "next/link";
 import { reserver, type EtatReservation } from "@/app/reserver/actions";
 import { enteteJour, heure, creneauLong, libelleSemaine, jourLong } from "@/lib/dates";
 import { GROUPES } from "@/lib/constantes";
+import { Champ, ChampClasse, Alerte, etiquette, saisie } from "@/components/Champs";
 import type { Creneau } from "@/lib/reservations";
+
+export type CompteAffiche = {
+  prenom: string | null;
+  email: string;
+  eleve_prenom: string | null;
+  eleve_classe: string | null;
+};
 
 type Props = {
   lundi: string;
@@ -13,9 +21,13 @@ type Props = {
   creneauxParJour: Record<string, Creneau[]>;
   semainePrecedente: string | null;
   semaineSuivante: string;
+  compte: CompteAffiche | null;
 };
 
-const CLASSES = [...GROUPES.college_seconde.classes, ...GROUPES.premiere_terminale.classes];
+const CLASSES = [
+  ...GROUPES.college_seconde.classes,
+  ...GROUPES.premiere_terminale.classes,
+];
 const etatInitial: EtatReservation = { erreur: null };
 
 /** Matin, après-midi, soir — on ne montre que les groupes non vides. */
@@ -34,6 +46,7 @@ export default function Calendrier({
   creneauxParJour,
   semainePrecedente,
   semaineSuivante,
+  compte,
 }: Props) {
   const [jourDemande, setJourDemande] = useState<string | null>(null);
   const [creneauDemande, setCreneauDemande] = useState<string | null>(null);
@@ -208,32 +221,49 @@ export default function Calendrier({
               </button>
             </div>
 
-            <div className="champs">
-              <Champ nom="prenom" libelle="Votre prénom" requis />
-              <Champ nom="nom" libelle="Votre nom" requis />
-              <Champ
-                nom="email"
-                libelle="Votre email"
-                type="email"
-                requis
-                aide="Pour la confirmation et la facture"
-              />
-              <Champ nom="telephone" libelle="Votre téléphone" type="tel" />
-              <Champ nom="eleve_prenom" libelle="Prénom de l'élève" requis />
-              <div>
-                <label htmlFor="classe" style={etiquette}>
-                  Classe de l&apos;élève
-                </label>
-                <select id="classe" name="classe" required style={{ ...saisie, padding: "0 12px" }}>
-                  <option value="">Choisir une classe</option>
-                  {CLASSES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+            {compte ? (
+              <div
+                style={{
+                  marginTop: 20,
+                  background: "var(--creme-fonce)",
+                  borderRadius: 4,
+                  padding: "16px 18px",
+                }}
+              >
+                <p className="surtitre" style={{ marginBottom: 6 }}>
+                  Pour
+                </p>
+                <p
+                  style={{
+                    fontFamily: "var(--serif)",
+                    fontSize: 20,
+                    color: "var(--foret)",
+                  }}
+                >
+                  {compte.eleve_prenom}
+                  {compte.eleve_classe ? `, ${compte.eleve_classe}` : ""}
+                </p>
+                <p style={{ marginTop: 6, fontSize: 13.5, color: "var(--texte-gris)" }}>
+                  Espace de {compte.email} ·{" "}
+                  <Link href="/mon-espace">mon espace</Link>
+                </p>
               </div>
-            </div>
+            ) : (
+              <div className="champs">
+                <Champ nom="prenom" libelle="Votre prénom" requis />
+                <Champ nom="nom" libelle="Votre nom" requis />
+                <Champ
+                  nom="email"
+                  libelle="Votre email"
+                  type="email"
+                  requis
+                  aide="Pour la confirmation et la facture"
+                />
+                <Champ nom="telephone" libelle="Votre téléphone" type="tel" />
+                <Champ nom="eleve_prenom" libelle="Prénom de l'élève" requis />
+                <ChampClasse classes={CLASSES} />
+              </div>
+            )}
 
             <div style={{ marginTop: 16 }}>
               <label htmlFor="sujet" style={etiquette}>
@@ -267,11 +297,7 @@ export default function Calendrier({
               virement. Le premier échange est gratuit.
             </div>
 
-            {etat.erreur && (
-              <p role="alert" className="alerte">
-                {etat.erreur}
-              </p>
-            )}
+            {etat.erreur && <Alerte>{etat.erreur}</Alerte>}
 
             <button
               type="submit"
@@ -282,71 +308,23 @@ export default function Calendrier({
               {enCours ? "Enregistrement…" : "Confirmer la réservation"}
             </button>
 
-            <p
-              style={{
-                marginTop: 14,
-                fontSize: 13,
-                lineHeight: 1.6,
-                color: "var(--texte-gris)",
-              }}
-            >
-              Votre espace élève est créé automatiquement, sans mot de passe à choisir.
-            </p>
+            {!compte && (
+              <p
+                style={{
+                  marginTop: 14,
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                  color: "var(--texte-gris)",
+                }}
+              >
+                Votre espace sera créé en un clic depuis l&apos;email de confirmation.
+                Vous pouvez aussi{" "}
+                <Link href="/creer-un-compte">le créer dès maintenant</Link>.
+              </p>
+            )}
           </form>
         </div>
       )}
-    </div>
-  );
-}
-
-const etiquette: React.CSSProperties = {
-  display: "block",
-  fontSize: 13.5,
-  fontWeight: 500,
-  color: "var(--foret)",
-  marginBottom: 7,
-};
-
-const saisie: React.CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  minHeight: 46,
-  padding: "0 14px",
-  border: "1px solid var(--bordure)",
-  borderRadius: 4,
-  background: "#fff",
-  fontFamily: "inherit",
-  fontSize: 15,
-  color: "var(--texte)",
-};
-
-function Champ({
-  nom,
-  libelle,
-  type = "text",
-  requis = false,
-  aide,
-}: {
-  nom: string;
-  libelle: string;
-  type?: string;
-  requis?: boolean;
-  aide?: string;
-}) {
-  return (
-    <div>
-      <label htmlFor={nom} style={etiquette}>
-        {libelle}
-      </label>
-      <input
-        id={nom}
-        name={nom}
-        type={type}
-        required={requis}
-        placeholder={aide}
-        autoComplete={nom === "email" ? "email" : nom === "telephone" ? "tel" : undefined}
-        style={saisie}
-      />
     </div>
   );
 }

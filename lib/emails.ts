@@ -130,13 +130,15 @@ export async function confirmationReservation(options: {
 
   const blocConfirmation = options.lienConfirmation
     ? `<hr style="border:none;border-top:1px solid #ede7d9;margin:28px 0;">
-       <p style="${P}"><strong>Une dernière chose.</strong> Confirmez votre adresse en
-         cliquant ci-dessous : cela me garantit que vous recevez bien mes messages, et
-         cela vous permettra de réserver d'autres cours.</p>
-       ${bouton(options.lienConfirmation, "Confirmer mon adresse")}
-       <p style="${P}font-size:13px;color:#55604f;">Le même lien vous permettra
-         ensuite de choisir un mot de passe pour votre espace, si vous le souhaitez.
-         Ce n'est pas obligatoire.</p>`
+       <p style="${P}"><strong>Créez votre espace, c'est l'affaire d'un clic.</strong>
+         Le lien ci-dessous confirme votre adresse et vous laisse choisir un mot de
+         passe. Vos coordonnées sont alors retenues : pour réserver un prochain cours,
+         il vous suffira de choisir un créneau, sans retaper quoi que ce soit.</p>
+       ${bouton(options.lienConfirmation, "Créer mon espace")}
+       <p style="${P}font-size:13px;color:#55604f;">Vous y retrouverez vos cours à
+         venir et passés, les documents échangés pendant les séances et vos factures.
+         Si vous préférez vous en passer, le même lien confirme simplement votre
+         adresse, ce qui suffit pour réserver d'autres cours.</p>`
     : "";
 
   return envoyer({
@@ -190,6 +192,56 @@ export async function alerteNouvelleReservation(options: {
                 davantage.</p>`
            : ""
        }`
+    ),
+  });
+}
+
+export async function bienvenueCompte(options: {
+  destinataire: string;
+  prenom: string;
+  lien: string;
+  dossierExistant: boolean;
+}): Promise<ResultatEnvoi> {
+  const rappel = options.dossierExistant
+    ? `<p style="${P}">Vous aviez déjà réservé avec cette adresse : vos cours passés
+         et à venir seront rattachés automatiquement à votre espace.</p>`
+    : "";
+
+  return envoyer({
+    destinataire: options.destinataire,
+    sujet: "Activez votre espace — Les cours de Pauline",
+    html: gabarit(
+      "Plus qu'une étape",
+      `<p style="${P}">Bonjour ${options.prenom},</p>
+       <p style="${P}">Voici le lien qui active votre espace. Il confirme votre adresse
+         et vous laisse choisir votre mot de passe.</p>
+       ${bouton(options.lien, "Choisir mon mot de passe")}
+       ${rappel}
+       <p style="${P}font-size:13px;color:#55604f;">Si vous n'êtes pas à l'origine de
+         cette demande, ignorez ce message : sans ce clic, aucun compte n'est créé.</p>
+       <p style="${P}">À bientôt,<br>Pauline</p>`
+    ),
+  });
+}
+
+export async function reinitialisationMotDePasse(options: {
+  destinataire: string;
+  prenom: string;
+  lien: string;
+}): Promise<ResultatEnvoi> {
+  return envoyer({
+    destinataire: options.destinataire,
+    sujet: "Votre nouveau mot de passe — Les cours de Pauline",
+    html: gabarit(
+      "Choisissez un nouveau mot de passe",
+      `<p style="${P}">Bonjour ${options.prenom},</p>
+       <p style="${P}">Ce lien vous permet de définir un nouveau mot de passe pour
+         votre espace.</p>
+       ${bouton(options.lien, "Changer mon mot de passe")}
+       <p style="${P}font-size:13px;color:#55604f;">Il ne fonctionne qu'une fois. Si
+         vous n'avez rien demandé, ignorez ce message : votre mot de passe actuel
+         reste valable.</p>
+       <p style="${P}">À bientôt,<br>Pauline</p>`
     ),
   });
 }

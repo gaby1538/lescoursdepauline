@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Calendrier from "@/components/Calendrier";
 import { creneauxDeLaSemaine } from "@/lib/reservations";
 import { lundiDeLaSemaine, ajouterJours } from "@/lib/dates";
+import { dossierConnecte } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Réserver un créneau" };
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export default async function Reserver({
 
   const jours = Array.from({ length: 7 }, (_, i) => ajouterJours(lundi, i));
   const creneauxParJour = await creneauxDeLaSemaine(lundi);
+  const compte = await dossierConnecte();
 
   return (
     <section className="section">
@@ -43,6 +45,7 @@ export default async function Reserver({
           creneauxParJour={creneauxParJour}
           semainePrecedente={lundi > semaineCourante ? ajouterJours(lundi, -7) : null}
           semaineSuivante={ajouterJours(lundi, 7)}
+          compte={compte}
         />
       </div>
     </section>

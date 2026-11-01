@@ -334,3 +334,38 @@ table.tarifs tbody tr + tr { border-top: 1px solid var(--bordure-douce); }
   .champs { grid-template-columns: 1fr; }
   .horaire { min-width: 76px; flex: 1 1 76px; }
 }
+
+/* ------------------------------------------------------------------ */
+/*  Espace élève                                                       */
+/* ------------------------------------------------------------------ */
+
+.cours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 22px 28px;
+}
+.cours + .cours { border-top: 1px solid var(--bordure-douce); }
+
+.cours__quand {
+  font-family: var(--serif);
+  font-size: 19px;
+  line-height: 1.3;
+  color: var(--foret);
+}
+.cours__sujet { margin-top: 5px; font-size: 14.5px; color: var(--texte-doux); }
+.cours__note { margin-top: 6px; font-size: 13px; color: var(--texte-gris); }
+
+.etiquette {
+  display: inline-block;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--creme-fonce);
+  border: 1px solid var(--bordure);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--texte-doux);
+  white-space: nowrap;
+}

@@ -33,10 +33,10 @@ export default async function Confirmation({
           </p>
         )}
         <p className="plomb" style={{ margin: "22px auto 0", maxWidth: 520 }}>
-          Un email de confirmation vient de partir. Il contient le lien de connexion et,
-          s&apos;il s&apos;agit de votre premier cours, un lien pour confirmer votre
-          adresse — un clic suffit, et cela vous permettra de réserver d&apos;autres
-          séances.
+          Un email de confirmation vient de partir. S&apos;il s&apos;agit de votre
+          premier cours, il contient un lien qui confirme votre adresse et crée votre
+          espace : un clic, un mot de passe, et vos coordonnées sont retenues pour
+          toutes vos prochaines réservations.
         </p>
         <p className="plomb" style={{ margin: "16px auto 0", maxWidth: 520 }}>
           Rien à régler maintenant. La facture arrivera en fin de mois.
