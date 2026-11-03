@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { creerCompte, type EtatFormulaire } from "@/app/compte/actions";
 import { Champ, ChampClasse, Alerte } from "@/components/Champs";
+import EmailEnvoye from "@/components/EmailEnvoye";
 import { GROUPES } from "@/lib/constantes";
 
 const CLASSES = [
@@ -14,6 +15,10 @@ const initial: EtatFormulaire = { erreur: null };
 
 export default function Formulaire() {
   const [etat, action, enCours] = useActionState(creerCompte, initial);
+
+  if (etat.envoyeA) {
+    return <EmailEnvoye adresse={etat.envoyeA} retour="/creer-un-compte" />;
+  }
 
   return (
     <form action={action}>

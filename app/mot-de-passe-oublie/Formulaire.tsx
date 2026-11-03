@@ -3,11 +3,16 @@
 import { useActionState } from "react";
 import { demanderReinitialisation, type EtatFormulaire } from "@/app/compte/actions";
 import { Champ, Alerte } from "@/components/Champs";
+import EmailEnvoye from "@/components/EmailEnvoye";
 
 const initial: EtatFormulaire = { erreur: null };
 
 export default function Formulaire() {
   const [etat, action, enCours] = useActionState(demanderReinitialisation, initial);
+
+  if (etat.envoyeA) {
+    return <EmailEnvoye adresse={etat.envoyeA} retour="/mot-de-passe-oublie" />;
+  }
 
   return (
     <form action={action}>

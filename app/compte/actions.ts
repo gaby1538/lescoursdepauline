@@ -16,16 +16,26 @@ import {
   reinitialisationMotDePasse,
 } from "@/lib/emails";
 
-export type EtatFormulaire = { erreur: string | null };
+export type EtatFormulaire = {
+  erreur: string | null;
+  /** L'adresse réellement servie, réaffichée à l'écran : une faute de
+   *  frappe se voit ainsi tout de suite, au lieu de laisser la personne
+   *  guetter un message qui ne viendra jamais. */
+  envoyeA?: string;
+};
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const LONGUEUR_MINIMALE = 8;
 
 /**
- * Message volontairement identique que l'adresse soit connue ou non :
+ * Réponse volontairement identique que l'adresse soit connue ou non :
  * sinon ce formulaire devient un moyen de savoir qui est élève ici.
+ * On se contente de renvoyer l'adresse saisie, ce qui n'apprend rien
+ * à qui la tape mais sauve celui qui s'est trompé d'une lettre.
  */
-const NEUTRE = "/compte/verifiez-vos-emails";
+function envoye(email: string): EtatFormulaire {
+  return { erreur: null, envoyeA: email };
+}
 
 // ---------------------------------------------------------------------
 //  Créer un compte, sans avoir réservé
@@ -47,7 +57,7 @@ export async function creerCompte(
   if (!elevePrenom) return { erreur: "Indiquez le prénom de l'élève." };
   if (!classe) return { erreur: "Choisissez la classe de l'élève." };
 
-  if (await adresseBloquee(email)) redirect(NEUTRE);
+  if (await adresseBloquee(email)) return envoye(email);
 
   const supabase = clientAdmin();
   const existant = await trouverDossierParEmail(email);
@@ -61,7 +71,7 @@ export async function creerCompte(
       prenom: existant.prenom ?? prenom,
       lien: lienActivation(jeton, true),
     });
-    redirect(NEUTRE);
+    return envoye(email);
   }
 
   let dossierId: string;
@@ -115,7 +125,7 @@ export async function creerCompte(
     details: { dossier_preexistant: Boolean(existant) },
   });
 
-  redirect(NEUTRE);
+  return envoye(email);
 }
 
 // ---------------------------------------------------------------------
@@ -272,5 +282,5 @@ export async function demanderReinitialisation(
     }
   }
 
-  redirect(NEUTRE);
+  return envoye(email);
 }
