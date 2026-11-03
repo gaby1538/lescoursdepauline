@@ -1,0 +1,252 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { clientAdmin } from "@/lib/supabase";
+import { creneauLong } from "@/lib/dates";
+import { euros } from "@/lib/constantes";
+import { etiquette, saisie } from "@/components/Champs";
+import {
+  basculerSuspension,
+  annulerCours,
+  marquerEffectue,
+  supprimerDossier,
+} from "../actions";
+
+export const dynamic = "force-dynamic";
+
+const LIBELLE: Record<string, string> = {
+  reservee: "Réservé",
+  effectuee: "Donné",
+  annulee_dans_delai: "Annulé à temps",
+  annulee_hors_delai: "Annulé tardivement",
+  absent: "Absent",
+  annulee_par_pauline: "Annulé par vous",
+};
+
+export default async function FicheEleve({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ ok?: string }>;
+}) {
+  const { id } = await params;
+  const { ok } = await searchParams;
+  const supabase = clientAdmin();
+
+  const { data: dossier } = await supabase
+    .from("dossiers")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!dossier) notFound();
+
+  const { data: cours } = await supabase
+    .from("reservations")
+    .select("id, debut, statut, sujet, prix_cents, facture_id")
+    .eq("dossier_id", id)
+    .order("debut", { ascending: false });
+
+  const maintenant = new Date().toISOString();
+
+  return (
+    <section className="section">
+      <div className="conteneur-etroit">
+        <p style={{ fontSize: 13.5, marginBottom: 10 }}>
+          <Link href="/admin/eleves">‹ Tous les élèves</Link>
+        </p>
+
+        <h1 style={{ fontSize: 38, lineHeight: 1.12 }}>
+          {dossier.eleve_prenom ?? "Élève"}
+          {dossier.eleve_classe ? (
+            <span style={{ fontSize: 20, color: "var(--texte-gris)" }}>
+              {" "}
+              · {dossier.eleve_classe}
+            </span>
+          ) : null}
+        </h1>
+
+        <p style={{ marginTop: 12, fontSize: 15, color: "var(--texte-doux)" }}>
+          Dossier ouvert par {dossier.prenom} {dossier.nom} — {dossier.email}
+          {dossier.telephone ? ` · ${dossier.telephone}` : ""}
+        </p>
+
+        {ok && <p className="succes">C&apos;est fait.</p>}
+
+        {dossier.suspendu && (
+          <p className="alerte">
+            <strong>Dossier suspendu.</strong>{" "}
+            {dossier.motif_suspension ?? "Aucun motif indiqué."} Cet élève ne peut plus
+            réserver.
+          </p>
+        )}
+
+        <div className="chiffres" style={{ marginTop: 28, gridTemplateColumns: "repeat(3, 1fr)" }}>
+          <div className="chiffre">
+            <p className="chiffre__valeur">{(cours ?? []).length}</p>
+            <p className="chiffre__libelle">cours au total</p>
+          </div>
+          <div className="chiffre">
+            <p className="chiffre__valeur">
+              {(cours ?? []).filter((c) => c.statut === "reservee" && c.debut >= maintenant).length}
+            </p>
+            <p className="chiffre__libelle">à venir</p>
+          </div>
+          <div className="chiffre">
+            <p className="chiffre__valeur">
+              {dossier.email_confirme_le ? (dossier.user_id ? "Actif" : "Confirmé") : "—"}
+            </p>
+            <p className="chiffre__libelle">espace élève</p>
+          </div>
+        </div>
+
+        <h2 style={{ fontSize: 25, margin: "44px 0 16px" }}>Ses cours</h2>
+        <div className="tableau-enveloppe">
+          {(cours ?? []).length === 0 ? (
+            <p style={{ padding: 24, fontSize: 15, color: "var(--texte-doux)" }}>
+              Aucun cours.
+            </p>
+          ) : (
+            <table className="liste">
+              <tbody>
+                {(cours ?? []).map((c) => (
+                  <tr key={c.id}>
+                    <td>
+                      <strong>{creneauLong(c.debut)}</strong>
+                      {c.sujet ? (
+                        <>
+                          <br />
+                          <span style={{ fontSize: 13.5, color: "var(--texte-gris)" }}>
+                            {c.sujet}
+                          </span>
+                        </>
+                      ) : null}
+                    </td>
+                    <td>
+                      <span className="etiquette">{LIBELLE[c.statut] ?? c.statut}</span>
+                      <br />
+                      <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
+                        {euros(c.prix_cents)}
+                        {c.facture_id ? " · facturé" : ""}
+                      </span>
+                    </td>
+                    <td className="droite">
+                      {c.statut === "reservee" && (
+                        <div style={{ display: "grid", gap: 6, justifyItems: "end" }}>
+                          {c.debut < maintenant && (
+                            <form action={marquerEffectue}>
+                              <input type="hidden" name="id" value={c.id} />
+                              <input type="hidden" name="dossier" value={id} />
+                              <button type="submit" className="lien-bouton">
+                                marquer donné
+                              </button>
+                            </form>
+                          )}
+                          <form action={annulerCours}>
+                            <input type="hidden" name="id" value={c.id} />
+                            <input type="hidden" name="dossier" value={id} />
+                            <button type="submit" className="lien-bouton">
+                              annuler
+                            </button>
+                          </form>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <h2 style={{ fontSize: 25, margin: "52px 0 16px" }}>Agir sur ce dossier</h2>
+
+        <form action={basculerSuspension} className="carte">
+          <p className="surtitre" style={{ marginBottom: 12 }}>
+            {dossier.suspendu ? "Réactiver" : "Suspendre"}
+          </p>
+          <p style={{ fontSize: 14.5, lineHeight: 1.65, color: "var(--texte-doux)" }}>
+            {dossier.suspendu
+              ? "L'élève pourra de nouveau réserver."
+              : "L'élève garde son espace et son historique, mais ne peut plus réserver. À utiliser pour un impayé, le temps d'une régularisation."}
+          </p>
+          <input type="hidden" name="id" value={id} />
+          <input type="hidden" name="suspendu" value={dossier.suspendu ? "1" : "0"} />
+          {!dossier.suspendu && (
+            <div style={{ marginTop: 14 }}>
+              <label htmlFor="motif" style={etiquette}>
+                Motif (visible de vous seule)
+              </label>
+              <input
+                id="motif"
+                name="motif"
+                type="text"
+                placeholder="Facture de septembre impayée"
+                style={saisie}
+              />
+            </div>
+          )}
+          <button
+            type="submit"
+            className="bouton bouton--secondaire bouton--compact"
+            style={{ marginTop: 16 }}
+          >
+            {dossier.suspendu ? "Réactiver le dossier" : "Suspendre le dossier"}
+          </button>
+        </form>
+
+        <form
+          action={supprimerDossier}
+          className="carte"
+          style={{ marginTop: 18, borderColor: "#dec89b", background: "#fdf8ee" }}
+        >
+          <p className="surtitre" style={{ marginBottom: 12 }}>
+            Supprimer
+          </p>
+          <p style={{ fontSize: 14.5, lineHeight: 1.65, color: "var(--texte-doux)" }}>
+            Le dossier et ses réservations disparaissent. Si des factures ont déjà été
+            émises, le dossier est anonymisé au lieu d&apos;être effacé : les pièces
+            comptables doivent être conservées dix ans, seule l&apos;identité est
+            retirée.
+          </p>
+          <input type="hidden" name="id" value={id} />
+          <label
+            style={{
+              display: "flex",
+              gap: 10,
+              alignItems: "flex-start",
+              marginTop: 16,
+              fontSize: 14.5,
+              color: "var(--texte-doux)",
+            }}
+          >
+            <input type="checkbox" name="bloquer" value="1" style={{ marginTop: 3 }} />
+            <span>
+              Bloquer aussi cette adresse — elle ne pourra plus créer de dossier ni
+              réserver.
+            </span>
+          </label>
+          <div style={{ marginTop: 14 }}>
+            <label htmlFor="motif_blocage" style={etiquette}>
+              Motif du blocage (facultatif)
+            </label>
+            <input
+              id="motif_blocage"
+              name="motif"
+              type="text"
+              placeholder="Réservations fictives"
+              style={saisie}
+            />
+          </div>
+          <button
+            type="submit"
+            className="bouton bouton--secondaire bouton--compact"
+            style={{ marginTop: 16 }}
+          >
+            Supprimer ce dossier
+          </button>
+        </form>
+      </div>
+    </section>
+  );
+}

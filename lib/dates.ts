@@ -127,3 +127,61 @@ export function blocLong(bloc: Bloc): string {
 export function dureeCourte(heures: number): string {
   return `${heures} h`;
 }
+
+/**
+ * Convertit une saisie « datetime-local » — qui n'a pas de fuseau — en
+ * instant UTC, en la lisant comme une heure de Paris.
+ *
+ * On procède en deux passes : la première estime le décalage, la seconde
+ * le vérifie à l'instant corrigé. Sans cela, les deux nuits de bascule
+ * horaire décaleraient la saisie d'une heure.
+ */
+function decalageParis(instant: Date): number {
+  const enUTC = new Date(instant.toLocaleString("en-US", { timeZone: "UTC" }));
+  const aParis = new Date(instant.toLocaleString("en-US", { timeZone: "Europe/Paris" }));
+  return aParis.getTime() - enUTC.getTime();
+}
+
+export function parisVersInstant(saisie: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(saisie)) return null;
+
+  const vise = Date.parse(`${saisie}:00Z`);
+  if (Number.isNaN(vise)) return null;
+
+  let instant = vise - decalageParis(new Date(vise));
+
+  // On vérifie en relisant : si l'instant trouvé ne se réaffiche pas
+  // comme la saisie, on corrige de l'écart constaté. Deux tours
+  // suffisent, y compris les nuits de changement d'heure.
+  for (let essai = 0; essai < 3; essai += 1) {
+    const relu = instantVersParis(new Date(instant).toISOString());
+    if (relu === saisie) break;
+    instant -= Date.parse(`${relu}:00Z`) - vise;
+  }
+
+  return new Date(instant).toISOString();
+}
+
+/** L'inverse, pour pré-remplir un champ « datetime-local ». */
+export function instantVersParis(instant: string): string {
+  const d = new Date(instant);
+  const p = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+  return p.replace(" ", "T");
+}
+
+/** « novembre 2026 », pour les intitulés de facture. */
+export function moisLong(jour: string): string {
+  return new Intl.DateTimeFormat("fr-FR", {
+    month: "long",
+    year: "numeric",
+    timeZone: "Europe/Paris",
+  }).format(new Date(`${jour.slice(0, 10)}T12:00:00Z`));
+}

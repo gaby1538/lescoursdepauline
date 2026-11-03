@@ -505,3 +505,229 @@ table.tarifs tbody tr + tr { border-top: 1px solid var(--bordure-douce); }
   cursor: pointer;
 }
 .lien-bouton:hover { color: #6b4708; }
+
+/* ------------------------------------------------------------------ */
+/*  Administration                                                     */
+/* ------------------------------------------------------------------ */
+
+.admin__barre {
+  background: var(--foret);
+  position: sticky;
+  top: 61px;
+  z-index: 40;
+}
+
+.admin__barre-contenu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.admin__nav { display: flex; flex-wrap: wrap; gap: 22px; }
+.admin__nav a {
+  font-size: 12.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.78);
+}
+.admin__nav a:hover { color: #fff; }
+
+.admin__compte {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.admin__compte .lien-bouton { color: var(--or-clair); font-size: 12.5px; }
+.admin__compte .lien-bouton:hover { color: #fff; }
+
+.admin__titre { display: flex; flex-wrap: wrap; gap: 16px;
+  align-items: flex-end; justify-content: space-between; margin-bottom: 32px; }
+
+.chiffres { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.chiffre {
+  background: var(--carte);
+  border: 1px solid var(--bordure);
+  border-radius: 6px;
+  padding: 20px 22px;
+}
+.chiffre__valeur {
+  font-family: var(--serif);
+  font-size: 34px;
+  line-height: 1.1;
+  color: var(--foret);
+}
+.chiffre__libelle { margin-top: 6px; font-size: 13px; color: var(--texte-gris); }
+
+table.liste { width: 100%; border-collapse: collapse; }
+table.liste th {
+  font-size: 11.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--texte-gris);
+  font-weight: 500;
+  text-align: left;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--bordure);
+}
+table.liste td {
+  padding: 16px 18px;
+  font-size: 14.5px;
+  color: var(--texte-doux);
+  vertical-align: top;
+}
+table.liste tbody tr + tr td { border-top: 1px solid var(--bordure-douce); }
+table.liste td strong { color: var(--foret); font-weight: 600; }
+table.liste .droite { text-align: right; }
+
+.rangee-formulaire {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+.succes {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 4px;
+  background: #e8f0e6;
+  border: 1px solid #b9cdb5;
+  color: #22401f;
+  font-size: 14.5px;
+}
+
+@media (max-width: 760px) {
+  .admin__barre { position: static; }
+  .chiffres { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.jour-plages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 24px;
+}
+.jour-plages + .jour-plages { border-top: 1px solid var(--bordure-douce); }
+
+.jour-plages__nom {
+  flex: 0 0 110px;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--texte-gris);
+}
+.jour-plages__liste { display: flex; flex-wrap: wrap; gap: 10px; }
+.jour-plages__vide { font-size: 14px; color: var(--texte-gris); font-style: italic; }
+
+.plage {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border: 1px solid var(--bordure);
+  border-radius: 4px;
+  background: var(--carte);
+  font-size: 14.5px;
+  color: var(--foret);
+}
+.plage--inactive { opacity: 0.45; text-decoration: line-through; }
+
+.plage__action {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: var(--or-texte);
+  cursor: pointer;
+}
+.plage__action:hover { color: #6b4708; }
+
+/* ------------------------------------------------------------------ */
+/*  Facture                                                            */
+/* ------------------------------------------------------------------ */
+
+.facture {
+  background: #fff;
+  border: 1px solid var(--bordure);
+  border-radius: 6px;
+  padding: 44px;
+}
+
+.facture__entete {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  justify-content: space-between;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--bordure);
+}
+
+.facture__petit {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--texte-gris);
+}
+
+.facture__parties {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  padding: 28px 0;
+}
+
+.facture__lignes { margin-top: 8px; }
+.facture__lignes th { padding-left: 0; padding-right: 0; }
+.facture__lignes td { padding-left: 0; padding-right: 0; color: var(--texte); }
+.facture__lignes .droite { text-align: right; }
+
+.facture__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 2px solid var(--foret);
+  font-size: 16px;
+  color: var(--foret);
+}
+.facture__total strong { font-family: var(--serif); font-size: 28px; }
+
+.facture__mention { margin-top: 12px; font-size: 13px; color: var(--texte-gris); }
+
+.facture__paiement {
+  margin-top: 28px;
+  padding: 20px 22px;
+  background: var(--creme-fonce);
+  border-radius: 4px;
+}
+
+.facture__impression {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--texte-gris);
+}
+
+@media print {
+  .entete, .pied, .admin__barre, .facture__impression { display: none !important; }
+  body { background: #fff; }
+  .section { padding: 0; border: none; }
+  .facture { border: none; padding: 0; }
+  .facture-page .conteneur-etroit { max-width: none; padding: 0; }
+}
+
+@media (max-width: 760px) {
+  .facture { padding: 24px; }
+  .facture__parties { grid-template-columns: 1fr; gap: 18px; }
+}

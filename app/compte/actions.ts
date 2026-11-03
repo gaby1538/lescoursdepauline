@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { clientAdmin } from "@/lib/supabase";
 import { clientSession } from "@/lib/session";
+import { emailAdmin } from "@/lib/admin";
 import { groupeDeLaClasse, adresseBloquee } from "@/lib/reservations";
 import {
   trouverDossierParEmail,
@@ -246,7 +247,8 @@ export async function seConnecter(
     return { erreur: "Adresse ou mot de passe incorrect." };
   }
 
-  redirect("/mon-espace");
+  // Pauline arrive sur son administration, les élèves sur leur espace.
+  redirect((await emailAdmin()) ? "/admin" : "/mon-espace");
 }
 
 export async function seDeconnecter(): Promise<void> {

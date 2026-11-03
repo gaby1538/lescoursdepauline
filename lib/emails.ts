@@ -275,3 +275,36 @@ export async function reinitialisationMotDePasse(options: {
     ),
   });
 }
+
+export async function factureEmise(options: {
+  destinataire: string;
+  prenom: string;
+  numero: string;
+  totalCentimes: number;
+  echeance: string;
+  lien: string;
+  heures: number;
+  periode: string;
+}): Promise<ResultatEnvoi> {
+  const montant = `${(options.totalCentimes / 100).toLocaleString("fr-FR", {
+    minimumFractionDigits: options.totalCentimes % 100 === 0 ? 0 : 2,
+  })} €`;
+
+  return envoyer({
+    destinataire: options.destinataire,
+    sujet: `Facture ${options.numero} — Les cours de Pauline`,
+    html: gabarit(
+      `Facture ${options.numero}`,
+      `<p style="${P}">Bonjour ${options.prenom},</p>
+       <p style="${P}">Voici la facture des cours de ${options.periode} :
+         <strong>${options.heures} heure${options.heures > 1 ? "s" : ""}</strong>,
+         soit <strong>${montant}</strong>.</p>
+       <p style="${P}">Elle est à régler avant le <strong>${options.echeance}</strong>,
+         par virement ou par Wero. Les coordonnées figurent sur la facture.</p>
+       ${bouton(options.lien, "Voir ma facture")}
+       <p style="${P}font-size:13px;color:#55604f;">La facture reste disponible dans
+         votre espace élève, avec toutes les précédentes.</p>
+       <p style="${P}">Merci,<br>Pauline</p>`
+    ),
+  });
+}

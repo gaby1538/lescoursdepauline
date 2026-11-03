@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { dossierConnecte } from "@/lib/session";
 import { clientAdmin } from "@/lib/supabase";
 import { seDeconnecter } from "@/app/compte/actions";
-import { creneauLong } from "@/lib/dates";
+import { creneauLong, moisLong } from "@/lib/dates";
 import { euros } from "@/lib/constantes";
 
 export const metadata: Metadata = { title: "Mon espace" };
@@ -42,11 +42,26 @@ export default async function MonEspace() {
   const dossier = await dossierConnecte();
   if (!dossier) redirect("/connexion");
 
-  const { data } = await clientAdmin()
-    .from("reservations")
-    .select("id, debut, statut, sujet, lien_visio, prix_cents")
-    .eq("dossier_id", dossier.id)
-    .order("debut", { ascending: false });
+  const supabase = clientAdmin();
+
+  const [{ data }, { data: documents }, { data: factures }] = await Promise.all([
+    supabase
+      .from("reservations")
+      .select("id, debut, statut, sujet, lien_visio, prix_cents")
+      .eq("dossier_id", dossier.id)
+      .order("debut", { ascending: false }),
+    supabase
+      .from("documents")
+      .select("id, nom_fichier, taille_octets, cree_le")
+      .eq("dossier_id", dossier.id)
+      .order("cree_le", { ascending: false }),
+    supabase
+      .from("factures")
+      .select("id, numero, statut, total_cents, periode_debut, echeance_le")
+      .eq("dossier_id", dossier.id)
+      .neq("statut", "brouillon")
+      .order("periode_debut", { ascending: false }),
+  ]);
 
   const toutes = (data ?? []) as Ligne[];
   const maintenant = new Date().toISOString();
@@ -141,11 +156,60 @@ export default async function MonEspace() {
           )}
         </Bloc>
 
-        <Bloc titre="Documents et factures">
-          <Vide>
-            Les supports utilisés pendant les cours et vos factures apparaîtront ici.
-            Pauline les dépose depuis son espace.
-          </Vide>
+        <Bloc titre="Documents">
+          {(documents ?? []).length === 0 ? (
+            <Vide>
+              Les supports utilisés pendant les cours apparaîtront ici dès que Pauline
+              les aura déposés.
+            </Vide>
+          ) : (
+            (documents ?? []).map((d) => (
+              <article key={d.id} className="cours">
+                <div>
+                  <p className="cours__quand" style={{ fontSize: 17 }}>
+                    {d.nom_fichier}
+                  </p>
+                  <p className="cours__note">
+                    Déposé le {new Date(d.cree_le).toLocaleDateString("fr-FR")}
+                  </p>
+                </div>
+                <a href={`/documents/${d.id}`}>télécharger</a>
+              </article>
+            ))
+          )}
+        </Bloc>
+
+        <Bloc titre="Factures">
+          {(factures ?? []).length === 0 ? (
+            <Vide>
+              Aucune facture pour l&apos;instant. Elles sont émises en fin de mois et
+              restent consultables ici.
+            </Vide>
+          ) : (
+            (factures ?? []).map((f) => (
+              <article key={f.id} className="cours">
+                <div>
+                  <p className="cours__quand" style={{ fontSize: 17 }}>
+                    Facture {f.numero ?? ""}
+                  </p>
+                  <p className="cours__note">
+                    {moisLong(f.periode_debut)}
+                    {f.echeance_le
+                      ? ` · à régler avant le ${new Date(f.echeance_le).toLocaleDateString("fr-FR")}`
+                      : ""}
+                  </p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <span className="etiquette">
+                    {f.statut === "payee" ? "Réglée" : "À régler"}
+                  </span>
+                  <p className="cours__note">
+                    {euros(f.total_cents)} · <a href={`/factures/${f.id}`}>voir</a>
+                  </p>
+                </div>
+              </article>
+            ))
+          )}
         </Bloc>
       </div>
     </section>
