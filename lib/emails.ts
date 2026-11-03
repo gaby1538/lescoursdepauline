@@ -1,6 +1,6 @@
 import "server-only";
 import { IDENTITE } from "./constantes";
-import { creneauLong } from "./dates";
+import { creneauLong, jourLong, blocLong, regrouperBlocs } from "./dates";
 
 /**
  * Envoi par l'API Resend, en fetch direct — inutile d'ajouter une
@@ -114,14 +114,37 @@ const P = `margin:0 0 14px;font-size:15px;line-height:1.6;`;
 //  Les messages
 // ---------------------------------------------------------------------
 
+type Creneau = { debut: string; fin: string };
+
+/** Les heures retenues, les suites regroupées en un seul cours long. */
+function listeCreneaux(creneaux: Creneau[]): string {
+  const lignes = regrouperBlocs(creneaux)
+    .map(
+      (bloc) =>
+        `<li style="margin:0 0 8px;font-size:15px;line-height:1.5;">${blocLong(bloc)}${
+          bloc.heures > 1
+            ? ` <strong style="color:#8a5e0c;">(${bloc.heures} h d'affilée)</strong>`
+            : ""
+        }</li>`
+    )
+    .join("");
+  return `<ul style="margin:0 0 16px;padding-left:20px;">${lignes}</ul>`;
+}
+
+function resumeCourt(creneaux: Creneau[]): string {
+  if (creneaux.length <= 1) return creneauLong(creneaux[0].debut);
+  return `${creneaux.length} heures à partir du ${jourLong(creneaux[0].debut)}`;
+}
+
 export async function confirmationReservation(options: {
   destinataire: string;
   prenom: string;
-  debut: string;
+  creneaux: Creneau[];
   lienVisio: string | null;
   lienConfirmation: string | null;
 }): Promise<ResultatEnvoi> {
-  const quand = creneauLong(options.debut);
+  const plusieurs = options.creneaux.length > 1;
+  const quand = resumeCourt(options.creneaux);
 
   const blocVisio = options.lienVisio
     ? `<p style="${P}">Le lien pour nous retrouver :<br>
@@ -143,15 +166,20 @@ export async function confirmationReservation(options: {
 
   return envoyer({
     destinataire: options.destinataire,
-    sujet: `Votre cours de SVT — ${quand}`,
+    sujet: plusieurs ? `Vos cours de SVT — ${quand}` : `Votre cours de SVT — ${quand}`,
     html: gabarit(
       "C'est noté",
       `<p style="${P}">Bonjour ${options.prenom},</p>
-       <p style="${P}">Votre cours est réservé pour le <strong>${quand}</strong>,
-         en visioconférence, pour une heure.</p>
+       <p style="${P}">${
+         plusieurs
+           ? "Vos heures sont réservées, en visioconférence :"
+           : "Votre cours est réservé, en visioconférence, pour une heure :"
+       }</p>
+       ${listeCreneaux(options.creneaux)}
        ${blocVisio}
-       <p style="${P}">Vous pouvez annuler ou déplacer jusqu'à 24 heures avant la
-         séance, sans frais. Au-delà, la séance est due.</p>
+       <p style="${P}">Vous pouvez annuler ou déplacer jusqu'à 24 heures avant
+         ${plusieurs ? "chaque séance" : "la séance"}, sans frais. Au-delà, la séance
+         est due.</p>
        <p style="${P}">Il n'y a rien à régler maintenant : je vous enverrai une
          facture en fin de mois.</p>
        ${blocConfirmation}
@@ -166,16 +194,18 @@ export async function alerteNouvelleReservation(options: {
   emailClient: string;
   eleve: string;
   classe: string;
-  debut: string;
+  creneaux: Creneau[];
   sujet: string | null;
   premiere: boolean;
 }): Promise<ResultatEnvoi> {
   return envoyer({
     destinataire: IDENTITE.email,
-    sujet: `${options.premiere ? "Nouvel élève" : "Réservation"} — ${creneauLong(options.debut)}`,
+    sujet: `${options.premiere ? "Nouvel élève" : "Réservation"} — ${resumeCourt(
+      options.creneaux
+    )}`,
     html: gabarit(
       options.premiere ? "Un nouvel élève a réservé" : "Nouvelle réservation",
-      `<p style="${P}"><strong>${creneauLong(options.debut)}</strong></p>
+      `${listeCreneaux(options.creneaux)}
        <p style="${P}">
          ${options.prenomClient} ${options.nomClient} — ${options.emailClient}<br>
          Élève : ${options.eleve}, ${options.classe}

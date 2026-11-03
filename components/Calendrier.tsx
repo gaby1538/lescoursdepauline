@@ -1,9 +1,16 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { reserver, type EtatReservation } from "@/app/reserver/actions";
-import { enteteJour, heure, creneauLong, libelleSemaine, jourLong } from "@/lib/dates";
+import {
+  enteteJour,
+  heure,
+  libelleSemaine,
+  jourLong,
+  regrouperBlocs,
+  blocLong,
+} from "@/lib/dates";
 import { GROUPES } from "@/lib/constantes";
 import { Champ, ChampClasse, Alerte, etiquette, saisie } from "@/components/Champs";
 import type { Creneau } from "@/lib/reservations";
@@ -30,7 +37,9 @@ const CLASSES = [
 ];
 const etatInitial: EtatReservation = { erreur: null };
 
-/** Matin, après-midi, soir — on ne montre que les groupes non vides. */
+/** La sélection survit au changement de semaine, qui recharge la page. */
+const CLE = "lcp.creneaux-choisis";
+
 function grouper(creneaux: Creneau[]) {
   const heureDe = (c: Creneau) => Number(heure(c.debut).slice(0, 2));
   return [
@@ -49,16 +58,58 @@ export default function Calendrier({
   compte,
 }: Props) {
   const [jourDemande, setJourDemande] = useState<string | null>(null);
-  const [creneauDemande, setCreneauDemande] = useState<string | null>(null);
+  const [choix, setChoix] = useState<Creneau[]>([]);
   const [etat, action, enCours] = useActionState(reserver, etatInitial);
 
-  // Si la semaine change, la sélection précédente n'a plus de sens.
+  // Au retour d'un changement de semaine, on retrouve sa sélection. Les
+  // créneaux devenus passés entre-temps sont écartés en silence.
+  useEffect(() => {
+    try {
+      const brut = sessionStorage.getItem(CLE);
+      if (!brut) return;
+      const maintenant = new Date().toISOString();
+      setChoix(
+        (JSON.parse(brut) as Creneau[]).filter((c) => c?.debut && c.debut > maintenant)
+      );
+    } catch {
+      /* navigation privée, stockage bloqué : on repart d'une liste vide */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(CLE, JSON.stringify(choix));
+    } catch {
+      /* sans conséquence : la sélection vit alors le temps de la page */
+    }
+  }, [choix]);
+
   const premierJourLibre = jours.find((j) => (creneauxParJour[j]?.length ?? 0) > 0);
   const jourChoisi =
     jourDemande && jours.includes(jourDemande) ? jourDemande : premierJourLibre ?? null;
-
   const creneauxDuJour = jourChoisi ? creneauxParJour[jourChoisi] ?? [] : [];
-  const choisi = creneauxDuJour.find((c) => c.debut === creneauDemande) ?? null;
+
+  const estChoisi = (c: Creneau) => choix.some((x) => x.debut === c.debut);
+
+  /**
+   * La grille avance de trente minutes alors qu'une séance dure une
+   * heure : 10 h 00 et 10 h 30 se chevauchent. Dès qu'on retient l'un,
+   * l'autre s'éteint — sinon on compose une sélection que la base
+   * refusera, et le refus arriverait trop tard.
+   */
+  const estEmpeche = (c: Creneau) =>
+    choix.some((x) => x.debut !== c.debut && x.debut < c.fin && x.fin > c.debut);
+
+  function basculer(c: Creneau) {
+    setChoix((liste) =>
+      liste.some((x) => x.debut === c.debut)
+        ? liste.filter((x) => x.debut !== c.debut)
+        : [...liste, { debut: c.debut, fin: c.fin }]
+    );
+  }
+
+  const blocs = regrouperBlocs(choix);
+  const total = choix.length;
 
   return (
     <div>
@@ -96,23 +147,24 @@ export default function Calendrier({
       <div className="jours">
         {jours.map((jour) => {
           const { nom, numero } = enteteJour(jour);
-          const nb = creneauxParJour[jour]?.length ?? 0;
+          const libres = creneauxParJour[jour]?.length ?? 0;
+          const retenus = choix.filter((c) => c.debut.slice(0, 10) === jour).length;
           const actif = jour === jourChoisi;
           return (
             <button
               key={jour}
               type="button"
-              disabled={nb === 0}
+              disabled={libres === 0}
               aria-pressed={actif}
-              onClick={() => {
-                setJourDemande(jour);
-                setCreneauDemande(null);
-              }}
+              onClick={() => setJourDemande(jour)}
               className={`jour ${actif ? "jour--actif" : ""}`}
             >
               <span className="jour__nom">{nom}</span>
               <span className="jour__numero">{numero}</span>
-              <span className="jour__compte">{nb === 0 ? "complet" : `${nb} libres`}</span>
+              <span className="jour__compte">
+                {libres === 0 ? "complet" : `${libres} libres`}
+              </span>
+              {retenus > 0 ? <span className="jour__pastille">{retenus}</span> : null}
             </button>
           );
         })}
@@ -128,9 +180,23 @@ export default function Calendrier({
         </div>
       ) : (
         <div className="carte" style={{ marginTop: 24 }}>
-          <p className="surtitre" style={{ marginBottom: 20 }}>
-            {jourLong(jourChoisi)}
-          </p>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 10,
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              marginBottom: 20,
+            }}
+          >
+            <p className="surtitre" style={{ marginBottom: 0 }}>
+              {jourLong(jourChoisi)}
+            </p>
+            <p style={{ fontSize: 13.5, color: "var(--texte-gris)" }}>
+              Cliquez sur plusieurs heures pour un cours plus long
+            </p>
+          </div>
 
           {grouper(creneauxDuJour).map((groupe) => (
             <div key={groupe.titre} style={{ marginBottom: 24 }}>
@@ -145,17 +211,29 @@ export default function Calendrier({
                 {groupe.titre}
               </p>
               <div className="horaires">
-                {groupe.liste.map((c) => (
-                  <button
-                    key={c.debut}
-                    type="button"
-                    aria-pressed={choisi?.debut === c.debut}
-                    onClick={() => setCreneauDemande(c.debut)}
-                    className={`horaire ${choisi?.debut === c.debut ? "horaire--actif" : ""}`}
-                  >
-                    {heure(c.debut)}
-                  </button>
-                ))}
+                {groupe.liste.map((c) => {
+                  const retenu = estChoisi(c);
+                  const empeche = !retenu && estEmpeche(c);
+                  return (
+                    <button
+                      key={c.debut}
+                      type="button"
+                      disabled={empeche}
+                      aria-pressed={retenu}
+                      onClick={() => basculer(c)}
+                      title={
+                        empeche
+                          ? "Chevauche une heure déjà retenue"
+                          : `${heure(c.debut)} à ${heure(c.fin)}`
+                      }
+                      className={`horaire ${retenu ? "horaire--actif" : ""} ${
+                        empeche ? "horaire--empeche" : ""
+                      }`}
+                    >
+                      {heure(c.debut)}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -168,14 +246,20 @@ export default function Calendrier({
       )}
 
       {/* ------------------------------------------------------ Formulaire */}
-      {choisi && (
+      {total > 0 && (
         <div
-          className="carte"
+          className="carte carte--retenue"
           style={{ marginTop: 24, maxWidth: 620, marginLeft: "auto", marginRight: "auto" }}
         >
           <form action={action}>
-            <input type="hidden" name="debut" value={choisi.debut} />
-            <input type="hidden" name="fin" value={choisi.fin} />
+            {choix.map((c) => (
+              <input
+                key={c.debut}
+                type="hidden"
+                name="creneaux"
+                value={`${c.debut}|${c.fin}`}
+              />
+            ))}
 
             <div
               style={{
@@ -184,42 +268,41 @@ export default function Calendrier({
                 gap: 12,
                 alignItems: "baseline",
                 justifyContent: "space-between",
-                paddingBottom: 20,
-                borderBottom: "1px solid var(--bordure-douce)",
+                marginBottom: 14,
               }}
             >
-              <div>
-                <p className="surtitre" style={{ marginBottom: 6 }}>
-                  Créneau choisi
-                </p>
-                <p
-                  style={{
-                    fontFamily: "var(--serif)",
-                    fontSize: 22,
-                    lineHeight: 1.3,
-                    color: "var(--foret)",
-                  }}
-                >
-                  {creneauLong(choisi.debut)}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCreneauDemande(null)}
-                style={{
-                  border: "none",
-                  background: "none",
-                  padding: 0,
-                  font: "inherit",
-                  fontSize: 14,
-                  color: "var(--or-texte)",
-                  textDecoration: "underline",
-                  cursor: "pointer",
-                }}
-              >
-                changer
+              <p className="surtitre" style={{ marginBottom: 0 }}>
+                {total === 1 ? "Votre créneau" : `Vos ${total} heures`}
+              </p>
+              <button type="button" onClick={() => setChoix([])} className="lien-bouton">
+                tout effacer
               </button>
             </div>
+
+            <ul style={{ display: "grid", gap: 10 }}>
+              {blocs.map((bloc) => (
+                <li key={bloc.debut} className="bloc">
+                  <span>
+                    <span className="bloc__quand">{blocLong(bloc)}</span>
+                    {bloc.heures > 1 ? (
+                      <span className="bloc__duree">{bloc.heures} h d&apos;affilée</span>
+                    ) : null}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Retirer ce créneau"
+                    onClick={() =>
+                      setChoix((liste) =>
+                        liste.filter((c) => c.debut < bloc.debut || c.debut >= bloc.fin)
+                      )
+                    }
+                    className="lien-bouton"
+                  >
+                    retirer
+                  </button>
+                </li>
+              ))}
+            </ul>
 
             {compte ? (
               <div
@@ -244,8 +327,7 @@ export default function Calendrier({
                   {compte.eleve_classe ? `, ${compte.eleve_classe}` : ""}
                 </p>
                 <p style={{ marginTop: 6, fontSize: 13.5, color: "var(--texte-gris)" }}>
-                  Espace de {compte.email} ·{" "}
-                  <Link href="/mon-espace">mon espace</Link>
+                  Espace de {compte.email} · <Link href="/mon-espace">mon espace</Link>
                 </p>
               </div>
             ) : (
@@ -293,8 +375,10 @@ export default function Calendrier({
               }}
             >
               <strong style={{ color: "var(--foret)" }}>Rien à payer maintenant.</strong>{" "}
-              La facture arrive en fin de mois, à régler sous 30 jours par Wero ou
-              virement. Le premier échange est gratuit.
+              Le tarif horaire dépend du niveau —{" "}
+              <Link href="/tarifs">voir les tarifs</Link>. La facture arrive en fin de
+              mois, à régler sous 30 jours par Wero ou virement. Le premier échange est
+              gratuit.
             </div>
 
             {etat.erreur && <Alerte>{etat.erreur}</Alerte>}
@@ -305,7 +389,11 @@ export default function Calendrier({
               className="bouton bouton--principal"
               style={{ marginTop: 20, width: "100%", opacity: enCours ? 0.6 : 1 }}
             >
-              {enCours ? "Enregistrement…" : "Confirmer la réservation"}
+              {enCours
+                ? "Enregistrement…"
+                : total === 1
+                  ? "Confirmer la réservation"
+                  : `Confirmer les ${total} heures`}
             </button>
 
             {!compte && (

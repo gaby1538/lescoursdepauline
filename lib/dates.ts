@@ -92,3 +92,38 @@ export function libelleSemaine(lundi: string): string {
     ? `Semaine du ${fmtJour.format(d1)} au ${fmtComplet.format(d2)}`
     : `Semaine du ${fmtComplet.format(d1)} au ${fmtComplet.format(d2)}`;
 }
+
+/**
+ * Plusieurs heures qui s'enchaînent forment un seul cours. On les
+ * regroupe pour les annoncer comme tel : « mardi 3 novembre, 10:00 à
+ * 12:00 » plutôt que deux lignes qui se suivent.
+ */
+export type Bloc = { debut: string; fin: string; heures: number };
+
+export function regrouperBlocs(
+  creneaux: { debut: string; fin: string }[]
+): Bloc[] {
+  const tries = [...creneaux].sort((a, b) => a.debut.localeCompare(b.debut));
+  const blocs: Bloc[] = [];
+
+  for (const c of tries) {
+    const dernier = blocs[blocs.length - 1];
+    if (dernier && dernier.fin === c.debut) {
+      dernier.fin = c.fin;
+      dernier.heures += 1;
+    } else {
+      blocs.push({ debut: c.debut, fin: c.fin, heures: 1 });
+    }
+  }
+  return blocs;
+}
+
+/** « mardi 3 novembre, de 10:00 à 12:00 » */
+export function blocLong(bloc: Bloc): string {
+  return `${jourLong(bloc.debut)}, de ${heure(bloc.debut)} à ${heure(bloc.fin)}`;
+}
+
+/** « 2 h » ou « 1 h » — pour les récapitulatifs courts. */
+export function dureeCourte(heures: number): string {
+  return `${heures} h`;
+}

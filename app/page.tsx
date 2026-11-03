@@ -168,7 +168,7 @@ export default function Accueil() {
           <div style={{ flex: "1 1 400px", minWidth: 0 }}>
             <p className="surtitre">Ma pédagogie</p>
             <h2 style={{ fontSize: 40, lineHeight: 1.15, marginBottom: 28 }}>
-              Les notions d&apos;abord, la méthode ensuite
+              La méthode d&apos;abord, les notions ensuite
             </h2>
             <ul style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {pedagogie.map((point) => (

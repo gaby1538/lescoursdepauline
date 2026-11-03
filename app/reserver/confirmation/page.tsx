@@ -8,9 +8,10 @@ export const metadata: Metadata = { title: "Réservation confirmée" };
 export default async function Confirmation({
   searchParams,
 }: {
-  searchParams: Promise<{ debut?: string }>;
+  searchParams: Promise<{ debut?: string; h?: string }>;
 }) {
-  const { debut } = await searchParams;
+  const { debut, h } = await searchParams;
+  const heures = Math.max(1, Number(h) || 1);
   const quand = debut ? creneauLong(debut) : null;
 
   return (
@@ -18,7 +19,15 @@ export default async function Confirmation({
       <div className="conteneur-etroit" style={{ textAlign: "center" }}>
         <p className="surtitre">C&apos;est noté</p>
         <h1 style={{ fontSize: 46, lineHeight: 1.1 }}>
-          Votre cours est <em className="accent">réservé</em>
+          {heures > 1 ? (
+            <>
+              Vos {heures} heures sont <em className="accent">réservées</em>
+            </>
+          ) : (
+            <>
+              Votre cours est <em className="accent">réservé</em>
+            </>
+          )}
         </h1>
         {quand && (
           <p
@@ -29,7 +38,12 @@ export default async function Confirmation({
               color: "var(--foret)",
             }}
           >
-            {quand}
+            {heures > 1 ? `À partir du ${quand}` : quand}
+          </p>
+        )}
+        {heures > 1 && (
+          <p style={{ marginTop: 10, fontSize: 15, color: "var(--texte-gris)" }}>
+            Le détail de chaque heure figure dans l&apos;email de confirmation.
           </p>
         )}
         <p className="plomb" style={{ margin: "22px auto 0", maxWidth: 520 }}>

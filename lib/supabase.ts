@@ -52,7 +52,8 @@ export const MESSAGES_RESERVATION: Record<string, string> = {
     "La réservation n'a pas pu être enregistrée. Écrivez-moi pour en savoir plus.",
   TROP_TARD: "Ce créneau est trop proche : il faut réserver au moins 24 h à l'avance.",
   HORS_DISPONIBILITE: "Ce créneau n'est pas proposé.",
-  CRENEAU_INDISPONIBLE: "Ce créneau vient d'être pris.",
+  CRENEAU_INDISPONIBLE: "Ce créneau n'est plus proposé.",
+  CRENEAU_PRIS: "Ce créneau vient d'être pris. Choisissez-en un autre.",
   EMAIL_NON_CONFIRME:
     "Confirmez d'abord votre adresse avec le lien reçu par email, puis vous pourrez réserver d'autres cours.",
   PLAFOND_SEMAINE:

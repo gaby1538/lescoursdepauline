@@ -20,7 +20,7 @@ export const IDENTITE = {
  * affiche un avertissement visible plutôt qu'une information inventée.
  */
 export const LEGAL = {
-  adresse: "",
+  adresse: "245B route du Roucas Blanc, 13007 Marseille",
   dateMaj: "3 novembre 2026",
   /** Région d'hébergement du projet Supabase, à vérifier dans le tableau
    *  de bord et à corriger ici si elle diffère. */
