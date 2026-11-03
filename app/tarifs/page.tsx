@@ -164,15 +164,14 @@ export default function Tarifs() {
       <section style={{ padding: "48px 0 70px" }}>
         <div className="conteneur-etroit">
           <h2 style={{ fontSize: 24, marginBottom: 12 }}>
-            Et le crédit d&apos;impôt de 50 % ?
+            Ce que comprend l&apos;heure
           </h2>
           <p style={{ fontSize: 15.5, lineHeight: 1.7, color: "var(--texte-doux)" }}>
-            Il ne s&apos;applique pas. Le crédit d&apos;impôt pour services à la
-            personne ne concerne que les cours donnés au domicile de l&apos;élève,
-            ce qui exclut la visioconférence. Autant le dire tout de suite plutôt
-            que de vous laisser le découvrir en remplissant votre déclaration : mes
-            tarifs en tiennent compte, et l&apos;accompagnement entre les séances
-            est compris dans l&apos;heure.
+            La séance elle-même, mais aussi sa préparation : j&apos;arrive avec le
+            support adapté au chapitre travaillé. Entre deux cours, vous pouvez
+            m&apos;écrire pour une question qui bloque, un exercice à vérifier ou un
+            devoir à relire. C&apos;est compris, et c&apos;est souvent là que se joue
+            la progression.
           </p>
           <p style={{ marginTop: 28 }}>
             <Link href="/reserver" className="bouton bouton--principal">

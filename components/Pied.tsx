@@ -13,7 +13,6 @@ export default function Pied() {
           <Link href="/mentions-legales">Mentions légales</Link>
           <Link href="/cgv">Conditions générales</Link>
           <Link href="/confidentialite">Confidentialité</Link>
-          <Link href="/mentions-legales#mediateur">Médiateur</Link>
         </nav>
       </div>
     </footer>

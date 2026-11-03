@@ -28,6 +28,16 @@ const LIBELLE_STATUT: Record<string, string> = {
   annulee_par_pauline: "Annulé par Pauline",
 };
 
+/**
+ * Une séance encore marquée « reservee » alors que l'heure est passée
+ * attend simplement que Pauline la clôture. L'annoncer « à venir »
+ * serait faux ; on dit ce qui est vrai pour l'élève.
+ */
+function libelleStatut(ligne: Ligne, maintenant: string): string {
+  if (ligne.statut === "reservee" && ligne.debut < maintenant) return "Séance passée";
+  return LIBELLE_STATUT[ligne.statut] ?? ligne.statut;
+}
+
 export default async function MonEspace() {
   const dossier = await dossierConnecte();
   if (!dossier) redirect("/connexion");
@@ -95,7 +105,7 @@ export default async function MonEspace() {
                   {r.sujet ? <p className="cours__sujet">{r.sujet}</p> : null}
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <span className="etiquette">{LIBELLE_STATUT[r.statut] ?? r.statut}</span>
+                  <span className="etiquette">{libelleStatut(r, maintenant)}</span>
                   {r.lien_visio ? (
                     <p style={{ marginTop: 8 }}>
                       <a href={r.lien_visio}>Rejoindre</a>
@@ -123,7 +133,7 @@ export default async function MonEspace() {
                   {r.sujet ? <p className="cours__sujet">{r.sujet}</p> : null}
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <span className="etiquette">{LIBELLE_STATUT[r.statut] ?? r.statut}</span>
+                  <span className="etiquette">{libelleStatut(r, maintenant)}</span>
                   <p className="cours__note">{euros(r.prix_cents)}</p>
                 </div>
               </article>

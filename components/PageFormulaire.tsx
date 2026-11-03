@@ -50,7 +50,7 @@ export default function PageFormulaire({
         </div>
 
         {pied ? (
-          <p
+          <div
             style={{
               marginTop: 22,
               textAlign: "center",
@@ -60,7 +60,7 @@ export default function PageFormulaire({
             }}
           >
             {pied}
-          </p>
+          </div>
         ) : null}
       </div>
     </section>

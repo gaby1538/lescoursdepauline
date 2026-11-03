@@ -14,6 +14,19 @@ export const IDENTITE = {
   whatsapp: "https://wa.me/33667910490",
 } as const;
 
+/**
+ * Ce que réclament les pages légales. L'adresse de l'entreprise est
+ * obligatoire dans les mentions légales : tant qu'elle est vide, la page
+ * affiche un avertissement visible plutôt qu'une information inventée.
+ */
+export const LEGAL = {
+  adresse: "",
+  dateMaj: "3 novembre 2026",
+  /** Région d'hébergement du projet Supabase, à vérifier dans le tableau
+   *  de bord et à corriger ici si elle diffère. */
+  regionDonnees: "Union européenne",
+} as const;
+
 export const GROUPES = {
   college_seconde: {
     libelle: "Collège et seconde",

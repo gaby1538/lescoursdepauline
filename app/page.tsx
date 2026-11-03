@@ -276,11 +276,6 @@ export default function Accueil() {
             </div>
           </div>
 
-          <p style={{ marginTop: 22, fontSize: 14, color: "var(--texte-gris)" }}>
-            Les cours en visio n&apos;ouvrent pas droit au crédit d&apos;impôt de
-            50 %, qui ne concerne que les cours à domicile.{" "}
-            <Link href="/tarifs">Le détail ici</Link>.
-          </p>
         </div>
       </section>
 

@@ -74,7 +74,16 @@ em.accent { font-style: italic; color: var(--or); }
 /*  En-tête et pied                                                    */
 /* ------------------------------------------------------------------ */
 
-.entete { background: var(--creme-fonce); border-bottom: 1px solid var(--bordure); }
+.entete {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--creme-fonce);
+  border-bottom: 1px solid var(--bordure);
+}
+
+/* Les ancres doivent s'arrêter sous le bandeau, pas dessous. */
+section[id] { scroll-margin-top: 96px; }
 
 .entete__barre {
   display: flex;
@@ -368,4 +377,55 @@ table.tarifs tbody tr + tr { border-top: 1px solid var(--bordure-douce); }
   letter-spacing: 0.04em;
   color: var(--texte-doux);
   white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Pages légales                                                      */
+/* ------------------------------------------------------------------ */
+
+.legal h2 {
+  font-size: 25px;
+  margin: 46px 0 14px;
+  padding-top: 26px;
+  border-top: 1px solid var(--bordure);
+}
+.legal h2:first-of-type { margin-top: 36px; }
+
+.legal h3 {
+  font-family: var(--sans);
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--foret);
+  margin: 24px 0 8px;
+}
+
+.legal p { font-size: 15.5px; line-height: 1.75; color: var(--texte-doux); }
+.legal p + p { margin-top: 13px; }
+
+.legal ul { margin-top: 12px; display: grid; gap: 9px; }
+.legal li {
+  position: relative;
+  padding-left: 20px;
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--texte-doux);
+}
+.legal li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  color: var(--or);
+}
+
+.legal__maj { font-size: 13.5px; color: var(--texte-gris); }
+
+.legal__trou {
+  display: block;
+  margin: 4px 0;
+  padding: 10px 14px;
+  border-radius: 4px;
+  background: #f7efdc;
+  border: 1px solid #dec89b;
+  color: #4a3206;
+  font-size: 14px;
 }
