@@ -10,6 +10,7 @@ import {
   jourLong,
   regrouperBlocs,
   blocLong,
+  jourDuCreneau,
 } from "@/lib/dates";
 import { GROUPES } from "@/lib/constantes";
 import { Champ, ChampClasse, Alerte, etiquette, saisie } from "@/components/Champs";
@@ -148,7 +149,7 @@ export default function Calendrier({
         {jours.map((jour) => {
           const { nom, numero } = enteteJour(jour);
           const libres = creneauxParJour[jour]?.length ?? 0;
-          const retenus = choix.filter((c) => c.debut.slice(0, 10) === jour).length;
+          const retenus = choix.filter((c) => jourDuCreneau(c.debut) === jour).length;
           const actif = jour === jourChoisi;
           return (
             <button

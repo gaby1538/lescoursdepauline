@@ -27,7 +27,13 @@ export function ajouterJours(iso: string, n: number): string {
 
 /** « jeudi 12 novembre » */
 export function jourLong(iso: string): string {
-  const d = new Date(`${iso}T12:00:00Z`);
+  // Une date invalide faisait lever Intl, et l'exception emportait la
+  // page entière. Un tiret cadratin est un moindre mal qu'un écran blanc.
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) {
+    console.warn("jourLong : date invalide", iso);
+    return "—";
+  }
   return new Intl.DateTimeFormat("fr-FR", {
     weekday: "long",
     day: "numeric",
@@ -47,16 +53,25 @@ export function enteteJour(iso: string): { nom: string; numero: string } {
 
 /** « 17:00 » à partir d'un timestamptz */
 export function heure(instant: string): string {
+  const d = new Date(instant);
+  if (Number.isNaN(d.getTime())) {
+    console.warn("heure : instant invalide", instant);
+    return "—";
+  }
   return new Intl.DateTimeFormat("fr-FR", {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: FUSEAU,
-  }).format(new Date(instant));
+  }).format(d);
 }
 
 /** « jeudi 12 novembre à 17:00 » */
 export function creneauLong(instant: string): string {
   const d = new Date(instant);
+  if (Number.isNaN(d.getTime())) {
+    console.warn("creneauLong : instant invalide", instant);
+    return "—";
+  }
   const jour = new Intl.DateTimeFormat("fr-FR", {
     weekday: "long",
     day: "numeric",
@@ -120,7 +135,15 @@ export function regrouperBlocs(
 
 /** « mardi 3 novembre, de 10:00 à 12:00 » */
 export function blocLong(bloc: Bloc): string {
-  return `${jourLong(bloc.debut)}, de ${heure(bloc.debut)} à ${heure(bloc.fin)}`;
+  // jourLong() attend une date (2026-11-03) et non un instant : on
+  // formate ici directement, sans passer par elle.
+  const jour = new Intl.DateTimeFormat("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: FUSEAU,
+  }).format(new Date(bloc.debut));
+  return `${jour}, de ${heure(bloc.debut)} à ${heure(bloc.fin)}`;
 }
 
 /** « 2 h » ou « 1 h » — pour les récapitulatifs courts. */

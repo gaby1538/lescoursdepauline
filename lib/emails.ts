@@ -1,6 +1,12 @@
 import "server-only";
 import { IDENTITE } from "./constantes";
-import { creneauLong, jourLong, blocLong, regrouperBlocs } from "./dates";
+import {
+  creneauLong,
+  jourLong,
+  jourDuCreneau,
+  blocLong,
+  regrouperBlocs,
+} from "./dates";
 
 /**
  * Envoi par l'API Resend, en fetch direct — inutile d'ajouter une
@@ -133,7 +139,9 @@ function listeCreneaux(creneaux: Creneau[]): string {
 
 function resumeCourt(creneaux: Creneau[]): string {
   if (creneaux.length <= 1) return creneauLong(creneaux[0].debut);
-  return `${creneaux.length} heures à partir du ${jourLong(creneaux[0].debut)}`;
+  return `${creneaux.length} heures à partir du ${jourLong(
+    jourDuCreneau(creneaux[0].debut)
+  )}`;
 }
 
 export async function confirmationReservation(options: {
