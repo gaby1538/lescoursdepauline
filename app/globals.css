@@ -247,52 +247,161 @@ table.tarifs tbody tr + tr { border-top: 1px solid var(--bordure-douce); }
 /*  Réservation : jours et horaires                                    */
 /* ------------------------------------------------------------------ */
 
-.jours {
+.reservation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.calendrier__tete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.calendrier__mois {
+  font-family: var(--serif);
+  font-size: 21px;
+  color: var(--foret);
+  text-transform: capitalize;
+}
+
+.calendrier__fleche {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--bordure);
+  border-radius: 4px;
+  background: var(--carte);
+  color: var(--foret);
+  font-size: 16px;
+  text-decoration: none;
+}
+.calendrier__fleche:hover { border-color: var(--foret); color: var(--foret); }
+.calendrier__fleche--eteinte { opacity: 0.3; }
+
+.calendrier__grille {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 10px;
+  gap: 5px;
 }
 
-.jour {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 14px 6px;
-  border: 1px solid var(--bordure);
-  border-radius: 6px;
-  background: var(--carte);
-  font-family: inherit;
-  color: var(--texte);
-  cursor: pointer;
-  transition: border-color 0.12s, background 0.12s;
-}
-
-.jour:hover:not(:disabled) { border-color: var(--foret); }
-
-.jour:disabled { opacity: 0.45; cursor: default; }
-
-.jour--actif,
-.jour--actif:hover { background: var(--foret); border-color: var(--foret); }
-.jour--actif .jour__nom,
-.jour--actif .jour__numero,
-.jour--actif .jour__compte { color: #fff; }
-
-.jour__nom {
-  font-size: 11.5px;
-  letter-spacing: 0.1em;
+.calendrier__entete {
+  padding-bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  color: var(--texte-gris);
+  text-align: center;
+}
+
+.calendrier__jour {
+  aspect-ratio: 1;
+  max-width: 100%;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: none;
+  font-family: inherit;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: var(--texte-gris);
+  cursor: default;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.calendrier__jour--voisin { opacity: 0.4; }
+
+.calendrier__jour--libre {
+  background: var(--creme-fonce);
+  border-color: var(--bordure);
+  color: var(--foret);
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 1;
+}
+.calendrier__jour--libre:hover { border-color: var(--or); background: #f6edda; }
+
+.calendrier__jour--aujourdhui { box-shadow: inset 0 0 0 1px var(--or-clair); }
+
+.calendrier__jour--actif,
+.calendrier__jour--actif:hover {
+  background: var(--foret);
+  border-color: var(--foret);
+  color: #fff;
+}
+
+.calendrier__legende {
+  margin-top: 16px;
+  font-size: 13px;
+  line-height: 1.6;
   color: var(--texte-gris);
 }
 
-.jour__numero {
+.volet { min-height: 280px; }
+.volet__attente { padding: 10px 0; }
+
+.volet__question {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foret);
+  margin-bottom: 11px;
+}
+
+.durees { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.duree {
+  min-height: 42px;
+  padding: 0 20px;
+  border: 1px solid var(--bordure);
+  border-radius: 999px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14.5px;
+  color: var(--foret);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.duree:hover:not(:disabled) { border-color: var(--foret); }
+.duree:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.duree--actif,
+.duree--actif:hover {
+  background: var(--foret);
+  border-color: var(--foret);
+  color: #fff;
+  font-weight: 600;
+}
+
+.retenu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--bordure-douce);
+}
+
+.retenu__quand {
   font-family: var(--serif);
-  font-size: 24px;
-  line-height: 1.1;
+  font-size: 21px;
+  line-height: 1.3;
   color: var(--foret);
 }
 
-.jour__compte { font-size: 11.5px; color: var(--texte-gris); }
+.retenu__duree {
+  padding: 5px 13px;
+  border-radius: 999px;
+  background: var(--or-clair);
+  color: var(--foret);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 .horaires { display: flex; flex-wrap: wrap; gap: 10px; }
 
@@ -339,9 +448,10 @@ table.tarifs tbody tr + tr { border-top: 1px solid var(--bordure-douce); }
 }
 
 @media (max-width: 760px) {
-  .jours { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .reservation { grid-template-columns: 1fr; }
   .champs { grid-template-columns: 1fr; }
   .horaire { min-width: 76px; flex: 1 1 76px; }
+  .volet { min-height: 0; }
 }
 
 /* ------------------------------------------------------------------ */
@@ -434,65 +544,7 @@ table.tarifs tbody tr + tr { border-top: 1px solid var(--bordure-douce); }
 /*  Réservation : sélection de plusieurs heures                        */
 /* ------------------------------------------------------------------ */
 
-.jour { position: relative; }
-
-.jour__pastille {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  min-width: 19px;
-  height: 19px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--or);
-  color: #fff;
-  font-size: 11.5px;
-  font-weight: 600;
-  line-height: 19px;
-  text-align: center;
-}
-.jour--actif .jour__pastille { background: var(--or-clair); color: var(--foret); }
-
-.horaire--empeche {
-  opacity: 0.3;
-  cursor: not-allowed;
-  text-decoration: line-through;
-}
-.horaire--empeche:hover { border-color: var(--bordure); }
-
 .carte--retenue { border-color: var(--vert-pale); }
-
-.bloc {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border: 1px solid var(--bordure);
-  border-radius: 4px;
-  background: var(--creme-fonce);
-}
-
-.bloc__quand {
-  font-family: var(--serif);
-  font-size: 18px;
-  line-height: 1.35;
-  color: var(--foret);
-}
-
-.bloc__duree {
-  display: inline-block;
-  margin-left: 10px;
-  padding: 2px 9px;
-  border-radius: 999px;
-  background: var(--or-clair);
-  color: var(--foret);
-  font-family: var(--sans);
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-}
 
 .lien-bouton {
   border: none;

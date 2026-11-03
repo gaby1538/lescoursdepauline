@@ -208,3 +208,62 @@ export function moisLong(jour: string): string {
     timeZone: "Europe/Paris",
   }).format(new Date(`${jour.slice(0, 10)}T12:00:00Z`));
 }
+
+/* ---------------------------------------------------------------------
+   Calendrier mensuel
+   ------------------------------------------------------------------ */
+
+/** « 2026-11 » → le mois décalé de n mois. */
+export function moisDecale(mois: string, n: number): string {
+  const [annee, m] = mois.split("-").map(Number);
+  const d = new Date(Date.UTC(annee, m - 1 + n, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Le mois courant, en heure de Paris. */
+export function moisCourant(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    timeZone: FUSEAU,
+  })
+    .format(new Date())
+    .slice(0, 7);
+}
+
+/**
+ * Les jours à afficher pour un mois : du lundi de la première semaine au
+ * dimanche de la dernière, afin que la grille soit toujours rectangulaire.
+ */
+export function grilleDuMois(mois: string): string[] {
+  const [annee, m] = mois.split("-").map(Number);
+  const premier = new Date(Date.UTC(annee, m - 1, 1));
+  const dernier = new Date(Date.UTC(annee, m, 0));
+
+  const debut = new Date(premier);
+  debut.setUTCDate(debut.getUTCDate() - ((debut.getUTCDay() + 6) % 7));
+
+  const fin = new Date(dernier);
+  fin.setUTCDate(fin.getUTCDate() + (7 - ((fin.getUTCDay() + 6) % 7) - 1));
+
+  const jours: string[] = [];
+  for (let d = new Date(debut); d <= fin; d.setUTCDate(d.getUTCDate() + 1)) {
+    jours.push(isoJour(d));
+  }
+  return jours;
+}
+
+/** « novembre 2026 » à partir de « 2026-11 ». */
+export function nomDuMois(mois: string): string {
+  return moisLong(`${mois}-01`);
+}
+
+/** Le quantième seul, pour une case du calendrier. */
+export function quantieme(jour: string): string {
+  return String(Number(jour.slice(8, 10)));
+}
+
+/** Le mois auquel appartient un jour, pour griser les jours voisins. */
+export function moisDuJour(jour: string): string {
+  return jour.slice(0, 7);
+}

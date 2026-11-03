@@ -1,17 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import { reserver, type EtatReservation } from "@/app/reserver/actions";
-import {
-  enteteJour,
-  heure,
-  libelleSemaine,
-  jourLong,
-  regrouperBlocs,
-  blocLong,
-  jourDuCreneau,
-} from "@/lib/dates";
+import { heure, jourLong, quantieme, moisDuJour, isoJour } from "@/lib/dates";
 import { GROUPES } from "@/lib/constantes";
 import { Champ, ChampClasse, Alerte, etiquette, saisie } from "@/components/Champs";
 import type { Creneau } from "@/lib/reservations";
@@ -24,11 +16,12 @@ export type CompteAffiche = {
 };
 
 type Props = {
-  lundi: string;
+  mois: string;
+  nomMois: string;
   jours: string[];
   creneauxParJour: Record<string, Creneau[]>;
-  semainePrecedente: string | null;
-  semaineSuivante: string;
+  moisPrecedent: string | null;
+  moisSuivant: string;
   compte: CompteAffiche | null;
 };
 
@@ -36,224 +29,236 @@ const CLASSES = [
   ...GROUPES.college_seconde.classes,
   ...GROUPES.premiere_terminale.classes,
 ];
+const JOURS_COURTS = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"];
+const DUREES = [1, 2, 3];
+const UNE_HEURE = 3_600_000;
 const etatInitial: EtatReservation = { erreur: null };
 
-/** La sélection survit au changement de semaine, qui recharge la page. */
-const CLE = "lcp.creneaux-choisis";
-
-function grouper(creneaux: Creneau[]) {
-  const heureDe = (c: Creneau) => Number(heure(c.debut).slice(0, 2));
-  return [
-    { titre: "Matin", liste: creneaux.filter((c) => heureDe(c) < 12) },
-    { titre: "Après-midi", liste: creneaux.filter((c) => heureDe(c) >= 12 && heureDe(c) < 18) },
-    { titre: "Soir", liste: creneaux.filter((c) => heureDe(c) >= 18) },
-  ].filter((g) => g.liste.length > 0);
-}
-
 export default function Calendrier({
-  lundi,
+  mois,
+  nomMois,
   jours,
   creneauxParJour,
-  semainePrecedente,
-  semaineSuivante,
+  moisPrecedent,
+  moisSuivant,
   compte,
 }: Props) {
-  const [jourDemande, setJourDemande] = useState<string | null>(null);
-  const [choix, setChoix] = useState<Creneau[]>([]);
+  const [jourChoisi, setJourChoisi] = useState<string | null>(null);
+  const [duree, setDuree] = useState(1);
+  const [debutChoisi, setDebutChoisi] = useState<string | null>(null);
   const [etat, action, enCours] = useActionState(reserver, etatInitial);
 
-  // Au retour d'un changement de semaine, on retrouve sa sélection. Les
-  // créneaux devenus passés entre-temps sont écartés en silence.
-  useEffect(() => {
-    try {
-      const brut = sessionStorage.getItem(CLE);
-      if (!brut) return;
-      const maintenant = new Date().toISOString();
-      setChoix(
-        (JSON.parse(brut) as Creneau[]).filter((c) => c?.debut && c.debut > maintenant)
-      );
-    } catch {
-      /* navigation privée, stockage bloqué : on repart d'une liste vide */
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(CLE, JSON.stringify(choix));
-    } catch {
-      /* sans conséquence : la sélection vit alors le temps de la page */
-    }
-  }, [choix]);
-
-  const premierJourLibre = jours.find((j) => (creneauxParJour[j]?.length ?? 0) > 0);
-  const jourChoisi =
-    jourDemande && jours.includes(jourDemande) ? jourDemande : premierJourLibre ?? null;
-  const creneauxDuJour = jourChoisi ? creneauxParJour[jourChoisi] ?? [] : [];
-
-  const estChoisi = (c: Creneau) => choix.some((x) => x.debut === c.debut);
+  const aujourdhui = isoJour(new Date());
 
   /**
-   * La grille avance de trente minutes alors qu'une séance dure une
-   * heure : 10 h 00 et 10 h 30 se chevauchent. Dès qu'on retient l'un,
-   * l'autre s'éteint — sinon on compose une sélection que la base
-   * refusera, et le refus arriverait trop tard.
+   * Une séance dure une heure et la grille avance de trente minutes :
+   * deux heures de suite, ce sont donc deux créneaux dont les débuts
+   * sont espacés d'exactement une heure. On ne peut pas se contenter
+   * de compter, il faut vérifier la continuité.
    */
-  const estEmpeche = (c: Creneau) =>
-    choix.some((x) => x.debut !== c.debut && x.debut < c.fin && x.fin > c.debut);
+  const departs = useMemo(() => {
+    const parJour: Record<string, Record<number, Creneau[]>> = {};
 
-  function basculer(c: Creneau) {
-    setChoix((liste) =>
-      liste.some((x) => x.debut === c.debut)
-        ? liste.filter((x) => x.debut !== c.debut)
-        : [...liste, { debut: c.debut, fin: c.fin }]
-    );
+    for (const [jour, liste] of Object.entries(creneauxParJour)) {
+      const instants = new Map(liste.map((c) => [Date.parse(c.debut), c]));
+      parJour[jour] = {};
+
+      for (const n of DUREES) {
+        parJour[jour][n] = liste.filter((c) => {
+          const depart = Date.parse(c.debut);
+          for (let k = 1; k < n; k += 1) {
+            if (!instants.has(depart + k * UNE_HEURE)) return false;
+          }
+          return true;
+        });
+      }
+    }
+    return parJour;
+  }, [creneauxParJour]);
+
+  const dureesDuJour = (jour: string) =>
+    DUREES.filter((n) => (departs[jour]?.[n]?.length ?? 0) > 0);
+
+  const heuresDuJour =
+    jourChoisi ? departs[jourChoisi]?.[duree] ?? [] : [];
+
+  const bloc = useMemo((): Creneau[] => {
+    if (!jourChoisi || !debutChoisi) return [];
+    const liste = creneauxParJour[jourChoisi] ?? [];
+    const instants = new Map(liste.map((c) => [Date.parse(c.debut), c]));
+    const depart = Date.parse(debutChoisi);
+    const suite: Creneau[] = [];
+    for (let k = 0; k < duree; k += 1) {
+      const c = instants.get(depart + k * UNE_HEURE);
+      if (!c) return [];
+      suite.push(c);
+    }
+    return suite;
+  }, [jourChoisi, debutChoisi, duree, creneauxParJour]);
+
+  function choisirJour(jour: string) {
+    setJourChoisi(jour);
+    setDebutChoisi(null);
+    const possibles = dureesDuJour(jour);
+    if (!possibles.includes(duree)) setDuree(possibles[0] ?? 1);
   }
 
-  const blocs = regrouperBlocs(choix);
-  const total = choix.length;
+  function choisirDuree(n: number) {
+    setDuree(n);
+    // Le départ retenu ne tient peut-être plus sur la nouvelle durée.
+    if (debutChoisi && jourChoisi) {
+      const tient = (departs[jourChoisi]?.[n] ?? []).some((c) => c.debut === debutChoisi);
+      if (!tient) setDebutChoisi(null);
+    }
+  }
+
+  const finBloc = bloc.length > 0 ? bloc[bloc.length - 1].fin : null;
 
   return (
     <div>
-      {/* ------------------------------------------------ Barre de semaine */}
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 16,
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 20,
-        }}
-      >
-        <h2 style={{ fontSize: 24 }}>{libelleSemaine(lundi)}</h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          {semainePrecedente ? (
+      <div className="reservation">
+        {/* ------------------------------------------------ Le calendrier */}
+        <div className="carte calendrier">
+          <div className="calendrier__tete">
+            {moisPrecedent ? (
+              <Link
+                href={`/reserver?mois=${moisPrecedent}`}
+                className="calendrier__fleche"
+                aria-label="Mois précédent"
+              >
+                ‹
+              </Link>
+            ) : (
+              <span className="calendrier__fleche calendrier__fleche--eteinte">‹</span>
+            )}
+            <p className="calendrier__mois">{nomMois}</p>
             <Link
-              href={`/reserver?semaine=${semainePrecedente}`}
-              className="bouton bouton--secondaire bouton--compact"
+              href={`/reserver?mois=${moisSuivant}`}
+              className="calendrier__fleche"
+              aria-label="Mois suivant"
             >
-              ‹ Semaine précédente
+              ›
             </Link>
-          ) : null}
-          <Link
-            href={`/reserver?semaine=${semaineSuivante}`}
-            className="bouton bouton--secondaire bouton--compact"
-          >
-            Semaine suivante ›
-          </Link>
-        </div>
-      </div>
-
-      {/* ------------------------------------------------------- Les jours */}
-      <div className="jours">
-        {jours.map((jour) => {
-          const { nom, numero } = enteteJour(jour);
-          const libres = creneauxParJour[jour]?.length ?? 0;
-          const retenus = choix.filter((c) => jourDuCreneau(c.debut) === jour).length;
-          const actif = jour === jourChoisi;
-          return (
-            <button
-              key={jour}
-              type="button"
-              disabled={libres === 0}
-              aria-pressed={actif}
-              onClick={() => setJourDemande(jour)}
-              className={`jour ${actif ? "jour--actif" : ""}`}
-            >
-              <span className="jour__nom">{nom}</span>
-              <span className="jour__numero">{numero}</span>
-              <span className="jour__compte">
-                {libres === 0 ? "complet" : `${libres} libres`}
-              </span>
-              {retenus > 0 ? <span className="jour__pastille">{retenus}</span> : null}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ----------------------------------------------------- Les horaires */}
-      {!jourChoisi ? (
-        <div className="carte" style={{ marginTop: 24, textAlign: "center" }}>
-          <p style={{ fontSize: 15.5, lineHeight: 1.6, color: "var(--texte-doux)" }}>
-            Aucun créneau libre cette semaine. Essayez la suivante, ou écrivez-moi : je
-            trouve souvent une solution.
-          </p>
-        </div>
-      ) : (
-        <div className="carte" style={{ marginTop: 24 }}>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 10,
-              alignItems: "baseline",
-              justifyContent: "space-between",
-              marginBottom: 20,
-            }}
-          >
-            <p className="surtitre" style={{ marginBottom: 0 }}>
-              {jourLong(jourChoisi)}
-            </p>
-            <p style={{ fontSize: 13.5, color: "var(--texte-gris)" }}>
-              Cliquez sur plusieurs heures pour un cours plus long
-            </p>
           </div>
 
-          {grouper(creneauxDuJour).map((groupe) => (
-            <div key={groupe.titre} style={{ marginBottom: 24 }}>
-              <p
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "var(--foret)",
-                  marginBottom: 12,
-                }}
-              >
-                {groupe.titre}
+          <div className="calendrier__grille" role="grid">
+            {JOURS_COURTS.map((nom) => (
+              <span key={nom} className="calendrier__entete">
+                {nom}
+              </span>
+            ))}
+
+            {jours.map((jour) => {
+              const libre = (departs[jour]?.[1]?.length ?? 0) > 0;
+              const horsMois = moisDuJour(jour) !== mois;
+              const actif = jour === jourChoisi;
+              return (
+                <button
+                  key={jour}
+                  type="button"
+                  disabled={!libre}
+                  aria-pressed={actif}
+                  aria-label={jourLong(jour)}
+                  onClick={() => choisirJour(jour)}
+                  className={[
+                    "calendrier__jour",
+                    libre ? "calendrier__jour--libre" : "",
+                    actif ? "calendrier__jour--actif" : "",
+                    horsMois ? "calendrier__jour--voisin" : "",
+                    jour === aujourdhui ? "calendrier__jour--aujourdhui" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  {quantieme(jour)}
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="calendrier__legende">
+            Les jours en relief ont des créneaux libres. Heure de Paris.
+          </p>
+        </div>
+
+        {/* ------------------------------------------- Durée puis horaires */}
+        <div className="carte volet">
+          {!jourChoisi ? (
+            <div className="volet__attente">
+              <p className="surtitre" style={{ marginBottom: 10 }}>
+                Première étape
               </p>
-              <div className="horaires">
-                {groupe.liste.map((c) => {
-                  const retenu = estChoisi(c);
-                  const empeche = !retenu && estEmpeche(c);
+              <p style={{ fontSize: 15.5, lineHeight: 1.65, color: "var(--texte-doux)" }}>
+                Choisissez un jour dans le calendrier. Je vous proposerai ensuite les
+                durées possibles, puis les heures de début.
+              </p>
+            </div>
+          ) : (
+            <>
+              <p className="surtitre" style={{ marginBottom: 14 }}>
+                {jourLong(jourChoisi)}
+              </p>
+
+              <p className="volet__question">Combien de temps ?</p>
+              <div className="durees">
+                {DUREES.map((n) => {
+                  const possible = (departs[jourChoisi]?.[n]?.length ?? 0) > 0;
                   return (
                     <button
-                      key={c.debut}
+                      key={n}
                       type="button"
-                      disabled={empeche}
-                      aria-pressed={retenu}
-                      onClick={() => basculer(c)}
-                      title={
-                        empeche
-                          ? "Chevauche une heure déjà retenue"
-                          : `${heure(c.debut)} à ${heure(c.fin)}`
-                      }
-                      className={`horaire ${retenu ? "horaire--actif" : ""} ${
-                        empeche ? "horaire--empeche" : ""
-                      }`}
+                      disabled={!possible}
+                      aria-pressed={n === duree}
+                      onClick={() => choisirDuree(n)}
+                      className={`duree ${n === duree ? "duree--actif" : ""}`}
                     >
-                      {heure(c.debut)}
+                      {n} h
                     </button>
                   );
                 })}
               </div>
-            </div>
-          ))}
 
-          <p style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--texte-gris)" }}>
-            Heure de Paris, séances d&apos;une heure. Réservation jusqu&apos;à 24 h avant
-            le cours, annulation gratuite dans le même délai.
-          </p>
+              <p className="volet__question" style={{ marginTop: 22 }}>
+                À quelle heure ?
+              </p>
+              {heuresDuJour.length === 0 ? (
+                <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--texte-gris)" }}>
+                  Aucun créneau de cette durée ce jour-là. Essayez une durée plus
+                  courte, ou un autre jour.
+                </p>
+              ) : (
+                <div className="horaires">
+                  {heuresDuJour.map((c) => (
+                    <button
+                      key={c.debut}
+                      type="button"
+                      aria-pressed={c.debut === debutChoisi}
+                      onClick={() => setDebutChoisi(c.debut)}
+                      className={`horaire ${c.debut === debutChoisi ? "horaire--actif" : ""}`}
+                    >
+                      {heure(c.debut)}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <p className="calendrier__legende" style={{ marginTop: 20 }}>
+                Réservation jusqu&apos;à 24 h avant le cours, annulation gratuite dans
+                le même délai.
+              </p>
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       {/* ------------------------------------------------------ Formulaire */}
-      {total > 0 && (
+      {bloc.length > 0 && finBloc && (
         <div
           className="carte carte--retenue"
           style={{ marginTop: 24, maxWidth: 620, marginLeft: "auto", marginRight: "auto" }}
         >
           <form action={action}>
-            {choix.map((c) => (
+            {bloc.map((c) => (
               <input
                 key={c.debut}
                 type="hidden"
@@ -262,48 +267,17 @@ export default function Calendrier({
               />
             ))}
 
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 12,
-                alignItems: "baseline",
-                justifyContent: "space-between",
-                marginBottom: 14,
-              }}
-            >
-              <p className="surtitre" style={{ marginBottom: 0 }}>
-                {total === 1 ? "Votre créneau" : `Vos ${total} heures`}
-              </p>
-              <button type="button" onClick={() => setChoix([])} className="lien-bouton">
-                tout effacer
-              </button>
+            <div className="retenu">
+              <div>
+                <p className="surtitre" style={{ marginBottom: 6 }}>
+                  Votre créneau
+                </p>
+                <p className="retenu__quand">
+                  {jourLong(jourChoisi!)}, de {heure(bloc[0].debut)} à {heure(finBloc)}
+                </p>
+              </div>
+              <span className="retenu__duree">{duree} h</span>
             </div>
-
-            <ul style={{ display: "grid", gap: 10 }}>
-              {blocs.map((bloc) => (
-                <li key={bloc.debut} className="bloc">
-                  <span>
-                    <span className="bloc__quand">{blocLong(bloc)}</span>
-                    {bloc.heures > 1 ? (
-                      <span className="bloc__duree">{bloc.heures} h d&apos;affilée</span>
-                    ) : null}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Retirer ce créneau"
-                    onClick={() =>
-                      setChoix((liste) =>
-                        liste.filter((c) => c.debut < bloc.debut || c.debut >= bloc.fin)
-                      )
-                    }
-                    className="lien-bouton"
-                  >
-                    retirer
-                  </button>
-                </li>
-              ))}
-            </ul>
 
             {compte ? (
               <div
@@ -390,11 +364,7 @@ export default function Calendrier({
               className="bouton bouton--principal"
               style={{ marginTop: 20, width: "100%", opacity: enCours ? 0.6 : 1 }}
             >
-              {enCours
-                ? "Enregistrement…"
-                : total === 1
-                  ? "Confirmer la réservation"
-                  : `Confirmer les ${total} heures`}
+              {enCours ? "Enregistrement…" : "Confirmer la réservation"}
             </button>
 
             {!compte && (

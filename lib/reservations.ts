@@ -28,6 +28,30 @@ export async function creneauxDeLaSemaine(
   return parJour;
 }
 
+/** Les créneaux libres d'une période quelconque, regroupés par jour. */
+export async function creneauxDeLaPeriode(
+  premierJour: string,
+  dernierJour: string
+): Promise<Record<string, Creneau[]>> {
+  const supabase = clientAdmin();
+  const { data, error } = await supabase.rpc("creneaux_libres", {
+    jour_debut: premierJour,
+    jour_fin: dernierJour,
+  });
+
+  if (error) {
+    console.error("creneaux_libres", error);
+    return {};
+  }
+
+  const parJour: Record<string, Creneau[]> = {};
+  for (const c of (data ?? []) as Creneau[]) {
+    const jour = jourDuCreneau(c.debut);
+    (parJour[jour] ??= []).push(c);
+  }
+  return parJour;
+}
+
 /** La classe choisie détermine le groupe tarifaire. */
 export function groupeDeLaClasse(classe: string): Groupe {
   const lycee = ["première", "premiere", "terminale"];

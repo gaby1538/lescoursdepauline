@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import Calendrier from "@/components/Calendrier";
-import { creneauxDeLaSemaine } from "@/lib/reservations";
-import { lundiDeLaSemaine, ajouterJours } from "@/lib/dates";
+import { creneauxDeLaPeriode } from "@/lib/reservations";
 import { dossierConnecte } from "@/lib/session";
+import {
+  grilleDuMois,
+  moisCourant,
+  moisDecale,
+  nomDuMois,
+  isoJour,
+} from "@/lib/dates";
 
 export const metadata: Metadata = { title: "Réserver un créneau" };
 export const dynamic = "force-dynamic";
@@ -10,20 +16,27 @@ export const dynamic = "force-dynamic";
 export default async function Reserver({
   searchParams,
 }: {
-  searchParams: Promise<{ semaine?: string }>;
+  searchParams: Promise<{ mois?: string }>;
 }) {
   const params = await searchParams;
-  const semaineCourante = lundiDeLaSemaine();
-  const demandee = params.semaine;
+  const courant = moisCourant();
 
-  const lundi =
-    demandee && /^\d{4}-\d{2}-\d{2}$/.test(demandee) && demandee >= semaineCourante
-      ? demandee
-      : semaineCourante;
+  const mois =
+    params.mois && /^\d{4}-\d{2}$/.test(params.mois) && params.mois >= courant
+      ? params.mois
+      : courant;
 
-  const jours = Array.from({ length: 7 }, (_, i) => ajouterJours(lundi, i));
-  const creneauxParJour = await creneauxDeLaSemaine(lundi);
-  const compte = await dossierConnecte();
+  const jours = grilleDuMois(mois);
+  const aujourdhui = isoJour(new Date());
+
+  // Inutile d'interroger le passé : la grille commence au plus tôt
+  // aujourd'hui, et les créneaux trop proches sont de toute façon
+  // écartés par la base.
+  const premier = jours[0] > aujourdhui ? jours[0] : aujourdhui;
+  const creneauxParJour =
+    premier <= jours[jours.length - 1]
+      ? await creneauxDeLaPeriode(premier, jours[jours.length - 1])
+      : {};
 
   return (
     <section className="section">
@@ -34,18 +47,19 @@ export default async function Reserver({
             Choisissez un <em className="accent">créneau</em>
           </h1>
           <p className="plomb" style={{ margin: "18px auto 0", maxWidth: 560 }}>
-            Les créneaux affichés sont réellement libres. Rien à payer ici : la facture
-            arrive en fin de mois.
+            Un jour, une durée, une heure. Les créneaux affichés sont réellement
+            libres, et il n&apos;y a rien à payer ici.
           </p>
         </div>
 
         <Calendrier
-          lundi={lundi}
+          mois={mois}
+          nomMois={nomDuMois(mois)}
           jours={jours}
           creneauxParJour={creneauxParJour}
-          semainePrecedente={lundi > semaineCourante ? ajouterJours(lundi, -7) : null}
-          semaineSuivante={ajouterJours(lundi, 7)}
-          compte={compte}
+          moisPrecedent={mois > courant ? moisDecale(mois, -1) : null}
+          moisSuivant={moisDecale(mois, 1)}
+          compte={await dossierConnecte()}
         />
       </div>
     </section>
