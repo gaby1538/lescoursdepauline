@@ -1,7 +1,7 @@
 import { clientAdmin } from "@/lib/supabase";
 import { etiquette, saisie } from "@/components/Champs";
 import { euros, GROUPES } from "@/lib/constantes";
-import { enregistrerReglages, enregistrerTarif } from "./actions";
+import { enregistrerReglages, enregistrerTarif, regenererAgenda } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +34,9 @@ export default async function Reglages({
     );
   }
 
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com";
+  const lienAgenda = `${site}/agenda/${p.jeton_agenda}.ics`;
+
   const tarif = (groupe: string, type: string) =>
     tarifs?.find((t) => t.groupe === groupe && t.type === type)?.prix_cents ?? 0;
 
@@ -43,7 +46,13 @@ export default async function Reglages({
         <p className="surtitre">Administration</p>
         <h1 style={{ fontSize: 40, lineHeight: 1.12 }}>Réglages</h1>
 
-        {ok && <p className="succes">Enregistré.</p>}
+        {ok === "agenda" ? (
+          <p className="succes">
+            Nouvelle adresse d&apos;agenda. Réabonnez-vous avec celle ci-dessous.
+          </p>
+        ) : ok ? (
+          <p className="succes">Enregistré.</p>
+        ) : null}
         {erreur && <p className="alerte">Une valeur saisie n&apos;est pas valide.</p>}
 
         <form action={enregistrerReglages}>
@@ -136,6 +145,32 @@ export default async function Reglages({
                 valeur={p.max_email_non_confirme}
               />
             </div>
+          </div>
+
+          <h2 style={{ fontSize: 25, margin: "44px 0 8px" }}>
+            Récapitulatif du lundi
+          </h2>
+          <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
+            Un email chaque lundi matin : les séances passées non validées, les
+            demandes d&apos;annulation sans réponse, les factures en retard et les
+            emails qui ne sont pas partis. C&apos;est ce qui attrape les pannes
+            silencieuses, celles où le site répond mais où plus rien ne sort.
+          </p>
+          <div className="carte" style={{ marginTop: 16 }}>
+            <label className="case-a-cocher" style={{ marginTop: 0 }}>
+              <input
+                type="checkbox"
+                name="recap_actif"
+                value="1"
+                defaultChecked={p.recap_actif ?? true}
+              />
+              <span>
+                Recevoir le récapitulatif
+                <span className="case-a-cocher__aide">
+                  Envoyé à {p.email_contact}.
+                </span>
+              </span>
+            </label>
           </div>
 
           <h2 style={{ fontSize: 25, margin: "44px 0 8px" }}>Rappel avant la séance</h2>
@@ -244,6 +279,43 @@ export default async function Reglages({
             Enregistrer les réglages
           </button>
         </form>
+
+        <h2 style={{ fontSize: 25, margin: "56px 0 8px" }}>Votre agenda</h2>
+        <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
+          Abonnez votre agenda à cette adresse : vos cours s&apos;afficheront à côté
+          de vos rendez-vous, sur téléphone comme sur ordinateur, et se mettront à
+          jour tout seuls.
+        </p>
+
+        <div className="carte" style={{ marginTop: 16 }}>
+          <p style={etiquette}>Adresse de l&apos;abonnement</p>
+          <p className="agenda__lien">{lienAgenda}</p>
+
+          <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.7, color: "var(--texte-doux)" }}>
+            <strong style={{ color: "var(--foret)" }}>Google Agenda</strong> — sur
+            ordinateur, « Autres agendas » puis « À partir de l&apos;URL ».
+            <br />
+            <strong style={{ color: "var(--foret)" }}>iPhone</strong> — Réglages,
+            Apps, Calendrier, Comptes, Ajouter un compte, Autre, Ajouter un abonnement
+            à un calendrier.
+          </p>
+
+          <p style={{ marginTop: 14, fontSize: 13, lineHeight: 1.65, color: "var(--texte-gris)" }}>
+            Quiconque possède cette adresse voit votre agenda : ne la publiez pas.
+            Google ne la relit que toutes les quelques heures ; sur iPhone, le délai
+            se règle dans les réglages du calendrier.
+          </p>
+
+          <form action={regenererAgenda} style={{ marginTop: 16 }}>
+            <button type="submit" className="bouton bouton--secondaire bouton--compact">
+              Changer l&apos;adresse
+            </button>
+          </form>
+          <p style={{ marginTop: 8, fontSize: 13, color: "var(--texte-gris)" }}>
+            L&apos;ancienne cesse aussitôt de fonctionner. À faire si le lien a
+            circulé.
+          </p>
+        </div>
 
         <h2 style={{ fontSize: 25, margin: "56px 0 8px" }}>Tarifs</h2>
         <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>

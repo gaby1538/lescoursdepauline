@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { clientAdmin } from "@/lib/supabase";
-import { rappelSeance } from "@/lib/emails";
+import { rappelSeance, recapitulatifHebdomadaire } from "@/lib/emails";
+import { jourDuCreneau } from "@/lib/dates";
+import { euros } from "@/lib/constantes";
 
 export const dynamic = "force-dynamic";
 
@@ -56,9 +58,14 @@ export async function GET(requete: NextRequest) {
   // --- 2. Rappels ----------------------------------------------------
   const { data: reglages } = await supabase
     .from("parametres")
-    .select("rappel_actif, rappel_minutes")
+    .select(
+      "rappel_actif, rappel_minutes, recap_actif, recap_envoye_le, email_contact"
+    )
     .eq("id", true)
     .maybeSingle();
+
+  // --- 3. Récapitulatif du lundi ------------------------------------
+  journal.recap = await envoyerRecapitulatif(reglages);
 
   if (!reglages?.rappel_actif) {
     journal.rappels = "désactivés";
@@ -121,4 +128,110 @@ export async function GET(requete: NextRequest) {
   }
 
   return NextResponse.json(journal);
+}
+
+type Reglages = {
+  recap_actif?: boolean | null;
+  recap_envoye_le?: string | null;
+  email_contact?: string | null;
+} | null;
+
+/**
+ * Le lundi, un état des lieux. La tâche s'exécute toutes les dix
+ * minutes : c'est la date du dernier envoi qui empêche de le répéter.
+ *
+ * Il part même quand il n'y a rien à signaler. C'est voulu : tant que
+ * Pauline le reçoit, elle sait que le site tourne et que les emails
+ * sortent. Un silence devient alors un signal.
+ */
+async function envoyerRecapitulatif(reglages: Reglages): Promise<string> {
+  if (!reglages?.recap_actif) return "désactivé";
+
+  const supabase = clientAdmin();
+  const maintenant = new Date();
+  const aujourdhui = jourDuCreneau(maintenant.toISOString());
+
+  const jour = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Paris",
+    weekday: "short",
+  }).format(maintenant);
+
+  if (jour !== "Mon") return "pas aujourd'hui";
+  if (reglages.recap_envoye_le === aujourdhui) return "déjà envoyé";
+
+  const instant = maintenant.toISOString();
+  const ilYAUneSemaine = new Date(
+    maintenant.getTime() - 7 * 24 * 3600 * 1000
+  ).toISOString();
+  const dansUneSemaine = new Date(
+    maintenant.getTime() + 7 * 24 * 3600 * 1000
+  ).toISOString();
+
+  const [semaine, aValider, annulations, retards, echecs] = await Promise.all([
+    supabase
+      .from("reservations")
+      .select("id", { count: "exact", head: true })
+      .eq("statut", "reservee")
+      .gte("debut", instant)
+      .lte("debut", dansUneSemaine),
+    supabase
+      .from("reservations")
+      .select("debut, dossiers (eleve_prenom)")
+      .eq("statut", "reservee")
+      .lt("debut", instant)
+      .order("debut")
+      .limit(20),
+    supabase
+      .from("reservations")
+      .select("debut, dossiers (eleve_prenom)")
+      .eq("statut", "reservee")
+      .not("annulation_demandee_le", "is", null)
+      .is("annulation_traitee_le", null)
+      .order("debut")
+      .limit(20),
+    supabase
+      .from("factures")
+      .select("numero, total_cents, dossiers (eleve_prenom)")
+      .in("statut", ["envoyee", "en_retard"])
+      .lt("echeance_le", aujourdhui)
+      .limit(20),
+    supabase
+      .from("journal")
+      .select("id", { count: "exact", head: true })
+      .eq("objet", "email")
+      .like("action", "%echou%")
+      .gte("cree_le", ilYAUneSemaine),
+  ]);
+
+  const nom = (ligne: { dossiers?: unknown }) =>
+    ((ligne.dossiers as { eleve_prenom?: string | null } | null)?.eleve_prenom) ??
+    "élève";
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com";
+
+  const resultat = await recapitulatifHebdomadaire({
+    destinataire: reglages.email_contact ?? "contact.capsvt@gmail.com",
+    coursSemaine: semaine.count ?? 0,
+    aValider: (aValider.data ?? []).map((r) => ({ debut: r.debut, eleve: nom(r) })),
+    annulations: (annulations.data ?? []).map((r) => ({
+      debut: r.debut,
+      eleve: nom(r),
+    })),
+    facturesEnRetard: (retards.data ?? []).map((f) => ({
+      numero: f.numero ?? "—",
+      montant: euros(f.total_cents),
+      eleve: nom(f),
+    })),
+    emailsEnEchec: echecs.count ?? 0,
+    lien: `${site}/admin`,
+  });
+
+  // Marqué même en cas d'échec : mieux vaut un récapitulatif manqué
+  // qu'une tentative toutes les dix minutes toute la journée.
+  await supabase
+    .from("parametres")
+    .update({ recap_envoye_le: aujourdhui })
+    .eq("id", true);
+
+  return resultat.ok ? "envoyé" : `échec : ${resultat.detail}`;
 }

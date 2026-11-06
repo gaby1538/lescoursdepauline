@@ -43,6 +43,7 @@ export async function enregistrerReglages(formulaire: FormData): Promise<void> {
     .update({
       ...champs,
       rappel_actif: String(formulaire.get("rappel_actif") ?? "") === "1",
+      recap_actif: String(formulaire.get("recap_actif") ?? "") === "1",
       reservations_suspendues: suspension,
       message_suspension:
         String(formulaire.get("message_suspension") ?? "").trim() ||
@@ -59,6 +60,21 @@ export async function enregistrerReglages(formulaire: FormData): Promise<void> {
     .eq("id", true);
 
   retour(error ? "?erreur=1" : "?ok=1");
+}
+
+/**
+ * Régénère l'adresse de l'agenda. L'ancienne cesse aussitôt de
+ * fonctionner : à faire si le lien a circulé par mégarde.
+ */
+export async function regenererAgenda(): Promise<void> {
+  await exigerAdmin();
+
+  await clientAdmin()
+    .from("parametres")
+    .update({ jeton_agenda: crypto.randomUUID() })
+    .eq("id", true);
+
+  retour("?ok=agenda");
 }
 
 export async function enregistrerTarif(formulaire: FormData): Promise<void> {

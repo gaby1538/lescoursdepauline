@@ -1008,3 +1008,16 @@ table.liste .droite { text-align: right; }
   color: var(--or-texte);
   text-align: left;
 }
+
+.agenda__lien {
+  padding: 12px 14px;
+  border: 1px solid var(--bordure);
+  border-radius: 4px;
+  background: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--texte);
+  overflow-wrap: anywhere;
+  user-select: all;
+}

@@ -438,3 +438,84 @@ export async function rappelSeance(options: {
     ),
   });
 }
+
+export async function recapitulatifHebdomadaire(options: {
+  destinataire: string;
+  coursSemaine: number;
+  aValider: { debut: string; eleve: string }[];
+  annulations: { debut: string; eleve: string }[];
+  facturesEnRetard: { numero: string; montant: string; eleve: string }[];
+  emailsEnEchec: number;
+  lien: string;
+}): Promise<ResultatEnvoi> {
+  const liste = (titre: string, elements: string[]) =>
+    elements.length === 0
+      ? ""
+      : `<p style="${P}"><strong>${titre}</strong></p>
+         <ul style="margin:0 0 16px;padding-left:20px;">
+           ${elements
+             .map(
+               (e) =>
+                 `<li style="margin:0 0 6px;font-size:15px;line-height:1.5;">${e}</li>`
+             )
+             .join("")}
+         </ul>`;
+
+  const riens =
+    options.aValider.length === 0 &&
+    options.annulations.length === 0 &&
+    options.facturesEnRetard.length === 0 &&
+    options.emailsEnEchec === 0;
+
+  return envoyer({
+    destinataire: options.destinataire,
+    sujet: riens
+      ? "Rien à signaler — Les cours de Pauline"
+      : "Votre semaine — Les cours de Pauline",
+    html: gabarit(
+      "Votre lundi",
+      `<p style="${P}">${
+        options.coursSemaine === 0
+          ? "Aucun cours programmé cette semaine."
+          : options.coursSemaine === 1
+            ? "Un cours est programmé cette semaine."
+            : `${options.coursSemaine} cours sont programmés cette semaine.`
+      }</p>
+
+       ${liste(
+         "Séances passées encore à valider",
+         options.aValider.map((s) => `${creneauLong(s.debut)} — ${s.eleve}`)
+       )}
+
+       ${liste(
+         "Demandes d'annulation sans réponse",
+         options.annulations.map((s) => `${creneauLong(s.debut)} — ${s.eleve}`)
+       )}
+
+       ${liste(
+         "Factures en retard de paiement",
+         options.facturesEnRetard.map(
+           (f) => `${f.numero} — ${f.eleve}, ${f.montant}`
+         )
+       )}
+
+       ${
+         options.emailsEnEchec > 0
+           ? `<p style="${P}"><strong>${options.emailsEnEchec} email${
+               options.emailsEnEchec > 1 ? "s ne sont" : " n'est"
+             } pas parti${
+               options.emailsEnEchec > 1 ? "s" : ""
+             } cette semaine.</strong> C'est le signal qu'il faut vérifier Resend.</p>`
+           : ""
+       }
+
+       ${
+         riens
+           ? `<p style="${P}">Rien ne demande votre attention. Ce message vous
+                parvient quand même chaque lundi : tant que vous le recevez, le site
+                tourne et les emails partent.</p>`
+           : bouton(options.lien, "Ouvrir l'administration")
+       }`
+    ),
+  });
+}
