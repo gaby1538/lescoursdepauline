@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { clientAdmin } from "@/lib/supabase";
 import { euros } from "@/lib/constantes";
-import { moisLong } from "@/lib/dates";
+import { moisLong, jourDuCreneau } from "@/lib/dates";
 import { etiquette, saisie } from "@/components/Champs";
 import {
   genererFactures,
@@ -40,6 +40,26 @@ export default async function Factures({
   const { ok, erreur } = await searchParams;
   const supabase = clientAdmin();
 
+  // Ce qui est validé mais encore sur aucune facture. C'est la réponse à
+  // « j'ai validé le cours et je ne vois pas de facture » : la
+  // préparation reste un geste volontaire, mais elle ne doit plus être
+  // invisible.
+  const { data: enAttente } = await supabase
+    .from("reservations")
+    .select("id, debut, prix_cents")
+    .is("facture_id", null)
+    .in("statut", ["effectuee", "annulee_hors_delai", "absent"]);
+
+  const parMois = new Map<string, { heures: number; cents: number }>();
+  for (const r of enAttente ?? []) {
+    const mois = jourDuCreneau(r.debut).slice(0, 7);
+    const c = parMois.get(mois) ?? { heures: 0, cents: 0 };
+    c.heures += 1;
+    c.cents += r.prix_cents ?? 0;
+    parMois.set(mois, c);
+  }
+  const moisEnAttente = [...parMois.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+
   const { data } = await supabase
     .from("factures")
     .select(
@@ -49,10 +69,11 @@ export default async function Factures({
 
   const liste = (data ?? []) as unknown as Facture[];
 
-  const precedent = new Date();
-  precedent.setUTCDate(1);
-  precedent.setUTCMonth(precedent.getUTCMonth() - 1);
-  const moisDefaut = precedent.toISOString().slice(0, 7);
+  // Le mois le plus utile est celui qui attend quelque chose ; à défaut,
+  // le mois en cours. Proposer le mois précédent par défaut faisait
+  // préparer des factures vides.
+  const moisDefaut =
+    moisEnAttente[0]?.[0] ?? new Date().toISOString().slice(0, 7);
 
   return (
     <section className="section">
@@ -78,6 +99,44 @@ export default async function Factures({
         )}
         {ok && ok !== "rien" && <p className="succes">C&apos;est fait.</p>}
 
+        {moisEnAttente.length > 0 && (
+          <div className="carte" style={{ marginBottom: 20, borderColor: "var(--or-clair)" }}>
+            <p className="surtitre" style={{ marginBottom: 14 }}>
+              En attente de facturation
+            </p>
+            <div style={{ display: "grid", gap: 12 }}>
+              {moisEnAttente.map(([mois, c]) => (
+                <form
+                  key={mois}
+                  action={genererFactures}
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 14,
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <input type="hidden" name="mois" value={mois} />
+                  <span style={{ fontSize: 15.5, color: "var(--foret)" }}>
+                    <strong style={{ fontFamily: "var(--serif)", fontSize: 19, fontWeight: 500 }}>
+                      {moisLong(`${mois}-01`)}
+                    </strong>{" "}
+                    — {c.heures} h, {euros(c.cents)}
+                  </span>
+                  <button type="submit" className="bouton bouton--or bouton--compact">
+                    Préparer ces factures
+                  </button>
+                </form>
+              ))}
+            </div>
+            <p style={{ marginTop: 14, fontSize: 13.5, lineHeight: 1.6, color: "var(--texte-gris)" }}>
+              Ces cours sont validés mais ne figurent sur aucune facture. Rien
+              n&apos;est envoyé à la préparation : vous relisez avant d&apos;émettre.
+            </p>
+          </div>
+        )}
+
         <form action={genererFactures} className="carte" style={{ marginBottom: 32 }}>
           <p className="surtitre" style={{ marginBottom: 14 }}>
             Préparer les factures d&apos;un mois
@@ -90,10 +149,9 @@ export default async function Factures({
               marginBottom: 16,
             }}
           >
-            Rassemble les cours donnés, les annulations tardives et les absences qui ne
-            sont pas encore sur une facture, et prépare un brouillon par élève. Rien
-            n&apos;est envoyé à cette étape, et rien n&apos;est numéroté : vous relisez
-            avant.
+            Pour revenir sur un autre mois que ceux proposés ci-dessus. Rassemble les
+            cours donnés, les annulations tardives et les absences qui ne sont pas
+            encore sur une facture, et prépare un brouillon par élève.
           </p>
           <div className="rangee-formulaire">
             <div>

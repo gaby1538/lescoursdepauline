@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { clientAdmin } from "@/lib/supabase";
 import { etiquette, saisie } from "@/components/Champs";
+import ChoixEleves, { type EleveChoisissable } from "./ChoixEleves";
 import { deposerDocument, supprimerDocument } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 const MESSAGES: Record<string, string> = {
-  dossier: "Choisissez l'élève à qui ce document est destiné.",
+  dossier: "Choisissez au moins un élève.",
+  trop: "Quarante élèves au maximum pour un même envoi.",
   fichier: "Aucun fichier sélectionné.",
   taille: "Le fichier dépasse 10 Mo.",
   type: "Formats acceptés : PDF, JPEG, PNG, HEIC.",
@@ -66,32 +68,23 @@ export default async function Documents({
         </p>
 
         {erreur && <p className="alerte">{MESSAGES[erreur] ?? "Dépôt impossible."}</p>}
-        {ok && <p className="succes">Document déposé.</p>}
+        {ok && (
+          <p className="succes">
+            {Number(ok) > 1
+              ? `Document déposé pour ${ok} élèves.`
+              : "Document déposé."}
+          </p>
+        )}
 
         <form action={deposerDocument} className="carte" style={{ marginTop: 28 }}>
           <p className="surtitre" style={{ marginBottom: 16 }}>
             Déposer un document
           </p>
+          <input type="hidden" name="retour" value="/admin/documents" />
           <div style={{ display: "grid", gap: 14 }}>
             <div>
-              <label htmlFor="dossier_id" style={etiquette}>
-                Pour quel élève
-              </label>
-              <select
-                id="dossier_id"
-                name="dossier_id"
-                required
-                defaultValue=""
-                style={{ ...saisie, padding: "0 12px" }}
-              >
-                <option value="">Choisir un élève</option>
-                {(dossiers.data ?? []).map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.eleve_prenom ?? "—"}
-                    {d.eleve_classe ? ` (${d.eleve_classe})` : ""} — {d.email}
-                  </option>
-                ))}
-              </select>
+              <p style={etiquette}>Pour qui</p>
+              <ChoixEleves eleves={(dossiers.data ?? []) as EleveChoisissable[]} />
             </div>
             <div>
               <label htmlFor="fichier" style={etiquette}>

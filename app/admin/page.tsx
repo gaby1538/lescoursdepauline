@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { clientAdmin } from "@/lib/supabase";
-import { creneauLong, lundiDeLaSemaine } from "@/lib/dates";
+import { creneauLong } from "@/lib/dates";
+import { marquerEffectue, annulerCours } from "./eleves/actions";
 import { euros } from "@/lib/constantes";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,8 @@ export default async function TableauDeBord() {
   const maintenant = new Date().toISOString();
   const debutMois = `${new Date().toISOString().slice(0, 7)}-01`;
 
-  const [prochains, eleves, aVenir, duMois, impayees, parametres] = await Promise.all([
+  const [prochains, aValider, eleves, aVenir, duMois, impayees, parametres] =
+    await Promise.all([
     supabase
       .from("reservations")
       .select("id, debut, sujet, dossiers (prenom, nom, eleve_prenom, eleve_classe)")
@@ -30,6 +32,16 @@ export default async function TableauDeBord() {
       .gte("debut", maintenant)
       .order("debut")
       .limit(12),
+    // Les séances dont l'heure est passée mais que Pauline n'a pas
+    // encore clôturées : tant qu'elles restent là, elles ne sont pas
+    // facturables.
+    supabase
+      .from("reservations")
+      .select("id, dossier_id, debut, sujet, dossiers (prenom, nom, eleve_prenom, eleve_classe)")
+      .eq("statut", "reservee")
+      .lt("debut", maintenant)
+      .order("debut", { ascending: false })
+      .limit(30),
     supabase
       .from("dossiers")
       .select("id", { count: "exact", head: true })
@@ -56,6 +68,9 @@ export default async function TableauDeBord() {
   ]);
 
   const liste = (prochains.data ?? []) as unknown as Prochain[];
+  const enAttente = (aValider.data ?? []) as unknown as (Prochain & {
+    dossier_id: string;
+  })[];
   const heuresDuMois = duMois.data?.length ?? 0;
   const recetteDuMois = (duMois.data ?? []).reduce(
     (somme, r) => somme + (r.prix_cents ?? 0),
@@ -102,6 +117,78 @@ export default async function TableauDeBord() {
           />
         </div>
 
+        <h2 style={{ fontSize: 25, margin: "46px 0 8px" }}>
+          Cours à valider
+          {enAttente.length > 0 ? (
+            <span className="pastille-compte">{enAttente.length}</span>
+          ) : null}
+        </h2>
+        <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
+          Une séance passée reste en attente jusqu&apos;à ce que vous la clôturiez.
+          Tant qu&apos;elle l&apos;est, elle n&apos;entre dans aucune facture.
+        </p>
+        <div className="tableau-enveloppe tableau-defilant" style={{ marginTop: 16 }}>
+          {enAttente.length === 0 ? (
+            <p style={{ padding: 28, fontSize: 15, color: "var(--texte-doux)" }}>
+              Rien en attente. Toutes les séances passées sont réglées.
+            </p>
+          ) : (
+            <table className="liste">
+              <tbody>
+                {enAttente.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <strong>{creneauLong(r.debut)}</strong>
+                      {r.sujet ? (
+                        <>
+                          <br />
+                          <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
+                            {r.sujet}
+                          </span>
+                        </>
+                      ) : null}
+                    </td>
+                    <td>
+                      {r.dossiers?.eleve_prenom ?? "—"}
+                      {r.dossiers?.eleve_classe ? (
+                        <>
+                          <br />
+                          <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
+                            {r.dossiers.eleve_classe}
+                          </span>
+                        </>
+                      ) : null}
+                    </td>
+                    <td className="droite">
+                      <div className="actions-ligne">
+                        <form action={marquerEffectue}>
+                          <input type="hidden" name="id" value={r.id} />
+                          <input type="hidden" name="dossier" value={r.dossier_id} />
+                          <input type="hidden" name="retour" value="/admin" />
+                          <button
+                            type="submit"
+                            className="bouton bouton--principal bouton--compact"
+                          >
+                            Cours donné
+                          </button>
+                        </form>
+                        <form action={annulerCours}>
+                          <input type="hidden" name="id" value={r.id} />
+                          <input type="hidden" name="dossier" value={r.dossier_id} />
+                          <input type="hidden" name="retour" value="/admin" />
+                          <button type="submit" className="lien-bouton">
+                            annuler
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
         <h2 style={{ fontSize: 25, margin: "46px 0 16px" }}>Prochains cours</h2>
         <div className="tableau-enveloppe tableau-defilant">
           {liste.length === 0 ? (
@@ -146,9 +233,7 @@ export default async function TableauDeBord() {
           )}
         </div>
 
-        <p style={{ marginTop: 20, fontSize: 13.5, color: "var(--texte-gris)" }}>
-          Semaine en cours : {lundiDeLaSemaine()}
-        </p>
+
       </div>
     </section>
   );

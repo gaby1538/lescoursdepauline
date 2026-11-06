@@ -10,6 +10,16 @@ function retour(chemin: string, parametre?: string): never {
   redirect(`${chemin}${parametre ?? ""}`);
 }
 
+/**
+ * Ces deux actions servent depuis la fiche d'un élève comme depuis le
+ * tableau de bord. On revient d'où l'on vient, mais seulement vers une
+ * page d'administration : le champ vient du navigateur.
+ */
+function destination(formulaire: FormData, defaut: string): string {
+  const demandee = String(formulaire.get("retour") ?? "");
+  return /^\/admin(\/[\w-]*)*$/.test(demandee) ? demandee : defaut;
+}
+
 export async function basculerSuspension(formulaire: FormData): Promise<void> {
   await exigerAdmin();
 
@@ -59,7 +69,7 @@ export async function annulerCours(formulaire: FormData): Promise<void> {
     });
   }
 
-  retour(`/admin/eleves/${dossier}`, "?ok=1");
+  retour(destination(formulaire, `/admin/eleves/${dossier}`), "?ok=1");
 }
 
 export async function marquerEffectue(formulaire: FormData): Promise<void> {
@@ -70,9 +80,16 @@ export async function marquerEffectue(formulaire: FormData): Promise<void> {
 
   if (id) {
     await clientAdmin().from("reservations").update({ statut: "effectuee" }).eq("id", id);
+    await clientAdmin().from("journal").insert({
+      acteur: "pauline",
+      dossier_id: dossier || null,
+      objet: "reservation",
+      objet_id: id,
+      action: "effectuee",
+    });
   }
 
-  retour(`/admin/eleves/${dossier}`, "?ok=1");
+  retour(destination(formulaire, `/admin/eleves/${dossier}`), "?ok=1");
 }
 
 /**

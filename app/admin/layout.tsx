@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { exigerAdmin } from "@/lib/admin";
 import { seDeconnecter } from "@/app/compte/actions";
+import CalerBarreAdmin from "@/components/CalerBarreAdmin";
 
 export const metadata: Metadata = { title: "Administration" };
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export default async function AdminLayout({
 
   return (
     <>
+      <CalerBarreAdmin />
       <div className="admin__barre">
         <div className="conteneur admin__barre-contenu">
           <nav className="admin__nav">

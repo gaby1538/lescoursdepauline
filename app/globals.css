@@ -565,7 +565,9 @@ table.tarifs tbody tr + tr { border-top: 1px solid var(--bordure-douce); }
 .admin__barre {
   background: var(--foret);
   position: sticky;
-  top: 61px;
+  /* Hauteur réelle de l'en-tête, mesurée au chargement ; la valeur de
+     repli sert le temps que le script s'exécute. */
+  top: var(--hauteur-entete, 81px);
   z-index: 40;
 }
 
@@ -783,3 +785,73 @@ table.liste .droite { text-align: right; }
   .facture { padding: 24px; }
   .facture__parties { grid-template-columns: 1fr; gap: 18px; }
 }
+
+.pastille-compte {
+  display: inline-block;
+  margin-left: 10px;
+  min-width: 26px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--or-clair);
+  color: var(--foret);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.actions-ligne {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.choix__tete {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.choix__filtre {
+  flex: 1 1 220px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--bordure);
+  border-radius: 4px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 14.5px;
+  color: var(--texte);
+}
+
+.choix__liste {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--bordure);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.choix__ligne {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  padding: 11px 14px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--texte-doux);
+  cursor: pointer;
+}
+.choix__ligne + .choix__ligne { border-top: 1px solid var(--bordure-douce); }
+.choix__ligne:hover { background: var(--creme-fonce); }
+.choix__ligne input { margin-top: 3px; flex: none; }
+.choix__ligne strong { color: var(--foret); }
+.choix__contact { font-size: 13px; color: var(--texte-gris); }
+
+.choix__compte { margin-top: 10px; font-size: 13.5px; color: var(--texte-gris); }

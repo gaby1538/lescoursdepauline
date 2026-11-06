@@ -4,6 +4,7 @@ import { clientAdmin } from "@/lib/supabase";
 import { creneauLong } from "@/lib/dates";
 import { euros } from "@/lib/constantes";
 import { etiquette, saisie } from "@/components/Champs";
+import { deposerDocument, supprimerDocument } from "../../documents/actions";
 import {
   basculerSuspension,
   annulerCours,
@@ -41,11 +42,18 @@ export default async function FicheEleve({
 
   if (!dossier) notFound();
 
-  const { data: cours } = await supabase
-    .from("reservations")
-    .select("id, debut, statut, sujet, prix_cents, facture_id")
-    .eq("dossier_id", id)
-    .order("debut", { ascending: false });
+  const [{ data: cours }, { data: documents }] = await Promise.all([
+    supabase
+      .from("reservations")
+      .select("id, debut, statut, sujet, prix_cents, facture_id")
+      .eq("dossier_id", id)
+      .order("debut", { ascending: false }),
+    supabase
+      .from("documents")
+      .select("id, nom_fichier, taille_octets, cree_le, depose_par")
+      .eq("dossier_id", id)
+      .order("cree_le", { ascending: false }),
+  ]);
 
   const maintenant = new Date().toISOString();
 
@@ -137,6 +145,7 @@ export default async function FicheEleve({
                             <form action={marquerEffectue}>
                               <input type="hidden" name="id" value={c.id} />
                               <input type="hidden" name="dossier" value={id} />
+                              <input type="hidden" name="retour" value={`/admin/eleves/${id}`} />
                               <button type="submit" className="lien-bouton">
                                 marquer donné
                               </button>
@@ -158,6 +167,82 @@ export default async function FicheEleve({
             </table>
           )}
         </div>
+
+        <h2 style={{ fontSize: 25, margin: "52px 0 10px" }}>Ses documents</h2>
+        <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
+          Déposés ici, ils apparaissent aussitôt dans l&apos;espace de l&apos;élève.
+        </p>
+
+        <div className="tableau-enveloppe" style={{ marginTop: 16 }}>
+          {(documents ?? []).length === 0 ? (
+            <p style={{ padding: 24, fontSize: 15, color: "var(--texte-doux)" }}>
+              Aucun document pour cet élève.
+            </p>
+          ) : (
+            <table className="liste">
+              <tbody>
+                {(documents ?? []).map((d) => (
+                  <tr key={d.id}>
+                    <td>
+                      <strong>{d.nom_fichier}</strong>
+                      <br />
+                      <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
+                        {new Date(d.cree_le).toLocaleDateString("fr-FR")} ·{" "}
+                        {d.taille_octets > 1024 * 1024
+                          ? `${(d.taille_octets / 1024 / 1024).toFixed(1)} Mo`
+                          : `${Math.max(1, Math.round(d.taille_octets / 1024))} Ko`}
+                        {d.depose_par === "pauline" ? "" : " · déposé par l'élève"}
+                      </span>
+                    </td>
+                    <td className="droite">
+                      <div className="actions-ligne">
+                        <Link href={`/documents/${d.id}`} target="_blank">
+                          ouvrir
+                        </Link>
+                        <form action={supprimerDocument}>
+                          <input type="hidden" name="id" value={d.id} />
+                          <input type="hidden" name="retour" value={`/admin/eleves/${id}`} />
+                          <button type="submit" className="lien-bouton">
+                            supprimer
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <form action={deposerDocument} className="carte" style={{ marginTop: 18 }}>
+          <input type="hidden" name="dossier_id" value={id} />
+          <input type="hidden" name="retour" value={`/admin/eleves/${id}`} />
+          <p className="surtitre" style={{ marginBottom: 14 }}>
+            Déposer pour {dossier.eleve_prenom ?? "cet élève"}
+          </p>
+          <label htmlFor="fichier" style={etiquette}>
+            Fichier
+          </label>
+          <input
+            id="fichier"
+            name="fichier"
+            type="file"
+            required
+            accept=".pdf,.jpg,.jpeg,.png,.heic"
+            style={{ ...saisie, padding: "11px 12px", height: "auto" }}
+          />
+          <p style={{ marginTop: 7, fontSize: 13, color: "var(--texte-gris)" }}>
+            PDF, JPEG, PNG ou HEIC. 10 Mo au maximum.
+          </p>
+          <button
+            type="submit"
+            className="bouton bouton--principal bouton--compact"
+            style={{ marginTop: 16 }}
+          >
+            Déposer
+          </button>
+        </form>
 
         <h2 style={{ fontSize: 25, margin: "52px 0 16px" }}>Agir sur ce dossier</h2>
 
