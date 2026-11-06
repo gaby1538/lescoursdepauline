@@ -1021,3 +1021,75 @@ table.liste .droite { text-align: right; }
   overflow-wrap: anywhere;
   user-select: all;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Historique d'un dossier                                            */
+/* ------------------------------------------------------------------ */
+
+.histo {
+  display: grid;
+  gap: 2px;
+  border-left: 1px solid var(--bordure);
+  padding-left: 16px;
+}
+
+.histo__ligne {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 5px 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--texte-doux);
+}
+
+.histo__date {
+  flex: 0 0 104px;
+  color: var(--texte-gris);
+  font-variant-numeric: tabular-nums;
+}
+
+.histo__quoi { flex: 1 1 220px; min-width: 0; }
+.histo__detail { color: var(--texte-gris); }
+.histo__acteur { color: var(--texte-gris); font-size: 12.5px; }
+
+.histo__ligne--echec .histo__quoi { color: var(--or-texte); }
+
+@media (max-width: 560px) {
+  .histo__date { flex-basis: 100%; font-size: 12.5px; }
+}
+
+.repli > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--serif);
+  font-size: 22px;
+  color: var(--foret);
+  cursor: pointer;
+  list-style: none;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--bordure);
+}
+.repli > summary::-webkit-details-marker { display: none; }
+.repli > summary::after {
+  content: "déplier";
+  margin-left: auto;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--or-texte);
+  text-decoration: underline;
+}
+.repli[open] > summary::after { content: "replier"; }
+
+.repli__compte {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--creme-fonce);
+  border: 1px solid var(--bordure);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--texte-gris);
+}
+
+.repli__corps { padding-top: 18px; }

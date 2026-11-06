@@ -4,6 +4,7 @@ import { clientAdmin } from "@/lib/supabase";
 import { creneauLong } from "@/lib/dates";
 import { euros } from "@/lib/constantes";
 import { etiquette, saisie } from "@/components/Champs";
+import Historique, { type Evenement } from "@/components/Historique";
 import { supprimerDocument } from "../../documents/actions";
 import DepotDocument from "../../documents/DepotDocument";
 import {
@@ -44,10 +45,12 @@ export default async function FicheEleve({
 
   if (!dossier) notFound();
 
-  const [{ data: cours }, { data: documents }] = await Promise.all([
+  const [{ data: cours }, { data: documents }, { data: evenements }] = await Promise.all([
     supabase
       .from("reservations")
-      .select("id, debut, statut, sujet, prix_cents, facture_id")
+      .select(
+        "id, debut, statut, sujet, prix_cents, facture_id, annulation_demandee_le, annulation_decision, annulation_reponse, annulation_motif"
+      )
       .eq("dossier_id", id)
       .order("debut", { ascending: false }),
     supabase
@@ -55,6 +58,12 @@ export default async function FicheEleve({
       .select("id, nom_fichier, taille_octets, cree_le, depose_par")
       .eq("dossier_id", id)
       .order("cree_le", { ascending: false }),
+    supabase
+      .from("journal")
+      .select("id, acteur, objet, action, details, cree_le")
+      .eq("dossier_id", id)
+      .order("cree_le", { ascending: false })
+      .limit(150),
   ]);
 
   const maintenant = new Date().toISOString();
@@ -128,6 +137,19 @@ export default async function FicheEleve({
                           <br />
                           <span style={{ fontSize: 13.5, color: "var(--texte-gris)" }}>
                             {c.sujet}
+                          </span>
+                        </>
+                      ) : null}
+                      {c.annulation_demandee_le ? (
+                        <>
+                          <br />
+                          <span style={{ fontSize: 13, color: "var(--or-texte)" }}>
+                            {c.annulation_decision === "acceptee"
+                              ? "Annulation demandée, acceptée"
+                              : c.annulation_decision === "refusee"
+                                ? "Annulation demandée, refusée"
+                                : "Annulation demandée, en attente"}
+                            {c.annulation_motif ? ` — « ${c.annulation_motif} »` : ""}
                           </span>
                         </>
                       ) : null}
@@ -282,6 +304,28 @@ export default async function FicheEleve({
             Enregistrer
           </button>
         </form>
+
+        <details className="repli" style={{ marginTop: 44 }}>
+          <summary>
+            Historique du dossier
+            <span className="repli__compte">{(evenements ?? []).length}</span>
+          </summary>
+          <div className="repli__corps">
+            <p
+              style={{
+                fontSize: 14,
+                lineHeight: 1.65,
+                color: "var(--texte-gris)",
+                marginBottom: 16,
+              }}
+            >
+              Tout ce qui a été fait sur ce dossier, du plus récent au plus ancien.
+              Utile le jour où quelqu&apos;un conteste une annulation ou affirme
+              n&apos;avoir rien reçu.
+            </p>
+            <Historique evenements={(evenements ?? []) as Evenement[]} />
+          </div>
+        </details>
 
         <h2 style={{ fontSize: 25, margin: "52px 0 16px" }}>Agir sur ce dossier</h2>
 
