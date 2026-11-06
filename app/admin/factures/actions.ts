@@ -315,15 +315,32 @@ export async function emettreEtEnvoyer(formulaire: FormData): Promise<void> {
   retour("?ok=emise");
 }
 
+const MODES = ["virement", "wero", "cheque", "especes", "autre"];
+
 export async function marquerPayee(formulaire: FormData): Promise<void> {
   await exigerAdmin();
+
   const id = String(formulaire.get("id") ?? "");
-  if (id) {
-    await clientAdmin()
-      .from("factures")
-      .update({ statut: "payee", payee_le: new Date().toISOString() })
-      .eq("id", id);
-  }
+  const mode = String(formulaire.get("mode") ?? "virement");
+  const quand = String(formulaire.get("payee_le") ?? "").trim();
+
+  if (!id) retour();
+
+  // Le livre des recettes se tient à la date d'encaissement, qui n'est
+  // pas forcément celle où Pauline ouvre le site.
+  const encaissee = /^\d{4}-\d{2}-\d{2}$/.test(quand)
+    ? new Date(`${quand}T12:00:00Z`).toISOString()
+    : new Date().toISOString();
+
+  await clientAdmin()
+    .from("factures")
+    .update({
+      statut: "payee",
+      payee_le: encaissee,
+      mode_reglement: MODES.includes(mode) ? mode : "autre",
+    })
+    .eq("id", id);
+
   retour("?ok=payee");
 }
 

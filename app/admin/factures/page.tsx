@@ -72,6 +72,9 @@ export default async function Factures({
   // Le mois le plus utile est celui qui attend quelque chose ; à défaut,
   // le mois en cours. Proposer le mois précédent par défaut faisait
   // préparer des factures vides.
+  const anneeCourante = new Date().getFullYear();
+  const annees = [anneeCourante, anneeCourante - 1, anneeCourante - 2];
+
   const moisDefaut =
     moisEnAttente[0]?.[0] ?? new Date().toISOString().slice(0, 7);
 
@@ -185,6 +188,53 @@ export default async function Factures({
           </div>
         </form>
 
+        <form
+          method="get"
+          action="/admin/factures/export"
+          className="carte"
+          style={{ marginBottom: 24 }}
+        >
+          <p className="surtitre" style={{ marginBottom: 12 }}>
+            Livre des recettes
+          </p>
+          <p
+            style={{
+              fontSize: 14.5,
+              lineHeight: 1.65,
+              color: "var(--texte-doux)",
+              marginBottom: 16,
+            }}
+          >
+            Toutes les factures émises d&apos;une année, avec leur date
+            d&apos;encaissement et leur mode de règlement, dans un fichier qui
+            s&apos;ouvre dans un tableur. À conserver hors du site : les pièces
+            comptables se gardent dix ans, ce qu&apos;aucune base de données en
+            service gratuit ne garantit.
+          </p>
+          <div className="rangee-formulaire">
+            <div>
+              <label htmlFor="annee" style={etiquette}>
+                Année
+              </label>
+              <select
+                id="annee"
+                name="annee"
+                defaultValue={String(new Date().getFullYear())}
+                style={{ ...saisie, padding: "0 12px" }}
+              >
+                {annees.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" className="bouton bouton--secondaire bouton--compact">
+              Télécharger
+            </button>
+          </div>
+        </form>
+
         <div className="tableau-enveloppe tableau-defilant">
           {liste.length === 0 ? (
             <p style={{ padding: 28, fontSize: 15, color: "var(--texte-doux)" }}>
@@ -255,12 +305,48 @@ export default async function Factures({
                           </>
                         )}
                         {(f.statut === "envoyee" || f.statut === "en_retard") && (
-                          <form action={marquerPayee}>
-                            <input type="hidden" name="id" value={f.id} />
-                            <button type="submit" className="lien-bouton">
-                              marquer payée
-                            </button>
-                          </form>
+                          <details className="annulation" style={{ textAlign: "right" }}>
+                            <summary>marquer payée</summary>
+                            <form action={marquerPayee} className="annulation__corps">
+                              <input type="hidden" name="id" value={f.id} />
+                              <label htmlFor={`d-${f.id}`} className="annulation__etiquette">
+                                Date d&apos;encaissement
+                              </label>
+                              <input
+                                id={`d-${f.id}`}
+                                name="payee_le"
+                                type="date"
+                                defaultValue={new Date().toISOString().slice(0, 10)}
+                                style={saisie}
+                              />
+                              <label
+                                htmlFor={`m-${f.id}`}
+                                className="annulation__etiquette"
+                                style={{ marginTop: 12 }}
+                              >
+                                Mode de règlement
+                              </label>
+                              <select
+                                id={`m-${f.id}`}
+                                name="mode"
+                                defaultValue="virement"
+                                style={{ ...saisie, padding: "0 12px" }}
+                              >
+                                <option value="virement">Virement</option>
+                                <option value="wero">Wero</option>
+                                <option value="cheque">Chèque</option>
+                                <option value="especes">Espèces</option>
+                                <option value="autre">Autre</option>
+                              </select>
+                              <button
+                                type="submit"
+                                className="bouton bouton--secondaire bouton--compact"
+                                style={{ marginTop: 12 }}
+                              >
+                                Enregistrer l&apos;encaissement
+                              </button>
+                            </form>
+                          </details>
                         )}
                       </div>
                     </td>
