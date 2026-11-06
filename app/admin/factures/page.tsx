@@ -92,6 +92,12 @@ export default async function Factures({
           </p>
         )}
         {erreur === "mois" && <p className="alerte">Choisissez un mois valide.</p>}
+        {erreur === "vide" && (
+          <p className="alerte">Une facture sans ligne ne peut pas être émise.</p>
+        )}
+        {erreur === "emise" && (
+          <p className="alerte">Cette facture est déjà émise : elle ne se modifie plus.</p>
+        )}
         {ok === "rien" && (
           <p className="succes">
             Aucun cours à facturer sur ce mois : tout est déjà sur une facture.
@@ -225,6 +231,9 @@ export default async function Factures({
                         </Link>
                         {f.statut === "brouillon" && (
                           <>
+                            <Link href={`/admin/factures/${f.id}/modifier`}>
+                              modifier
+                            </Link>
                             <form action={emettreEtEnvoyer}>
                               <input type="hidden" name="id" value={f.id} />
                               <button type="submit" className="lien-bouton">

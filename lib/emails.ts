@@ -316,3 +316,25 @@ export async function factureEmise(options: {
     ),
   });
 }
+
+export async function nouveauDocument(options: {
+  destinataire: string;
+  prenom: string;
+  nomFichier: string;
+  lien: string;
+}): Promise<ResultatEnvoi> {
+  return envoyer({
+    destinataire: options.destinataire,
+    sujet: "Un document vous attend — Les cours de Pauline",
+    html: gabarit(
+      "Nouveau document",
+      `<p style="${P}">Bonjour ${options.prenom},</p>
+       <p style="${P}">Je viens de déposer <strong>${options.nomFichier}</strong> dans
+         votre espace. Vous pouvez le consulter et le télécharger quand vous voulez.</p>
+       ${bouton(options.lien, "Voir mon espace")}
+       <p style="${P}font-size:13px;color:#55604f;">Les documents restent disponibles
+         dans votre espace, avec les précédents.</p>
+       <p style="${P}">À bientôt,<br>Pauline</p>`
+    ),
+  });
+}

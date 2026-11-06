@@ -50,6 +50,7 @@ export default function DepotDocument({
   const [erreur, setErreur] = useState<string | null>(null);
   const [succes, setSucces] = useState<string | null>(null);
   const [avancement, setAvancement] = useState<number | null>(null);
+  const [prevenir, setPrevenir] = useState(false);
 
   const destinataires = dossierId ? [dossierId] : coches;
   const occupe = avancement !== null;
@@ -113,6 +114,7 @@ export default function DepotDocument({
         nom: fichier.name,
         type: fichier.type,
         taille: fichier.size,
+        prevenir,
       });
 
       setAvancement(null);
@@ -121,13 +123,20 @@ export default function DepotDocument({
         return setErreur(MESSAGES[resultat.erreur] ?? "Dépôt impossible.");
       }
 
+      const avertis = prevenir
+        ? resultat.prevenus === resultat.deposes
+          ? " Chacun en a été averti par email."
+          : ` ${resultat.prevenus} sur ${resultat.deposes} ont été avertis par email.`
+        : "";
+
       setSucces(
-        resultat.deposes > 1
+        (resultat.deposes > 1
           ? `Document déposé pour ${resultat.deposes} élèves.`
-          : "Document déposé."
+          : "Document déposé.") + avertis
       );
       setFichier(null);
       setCoches([]);
+      setPrevenir(false);
       if (champ.current) champ.current.value = "";
       router.refresh();
     } catch {
@@ -165,6 +174,23 @@ export default function DepotDocument({
         PDF, JPEG, PNG ou HEIC. 25 Mo au maximum.
         {fichier ? ` Choisi : ${fichier.name}, ${poids(fichier.size)}.` : ""}
       </p>
+
+      <label className="case-a-cocher">
+        <input
+          type="checkbox"
+          checked={prevenir}
+          disabled={occupe}
+          onChange={(e) => setPrevenir(e.target.checked)}
+        />
+        <span>
+          Prévenir par email
+          <span className="case-a-cocher__aide">
+            Un message annonçant le document et renvoyant vers l&apos;espace élève.
+            Laissé décoché, rien n&apos;est envoyé — le document apparaît simplement
+            dans l&apos;espace.
+          </span>
+        </span>
+      </label>
 
       {avancement !== null && (
         <div className="depot__jauge" aria-live="polite">

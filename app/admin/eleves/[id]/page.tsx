@@ -11,6 +11,7 @@ import {
   annulerCours,
   marquerEffectue,
   supprimerDossier,
+  enregistrerFacturation,
 } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -222,6 +223,65 @@ export default async function FicheEleve({
             dossierId={id}
           />
         </div>
+
+        <h2 style={{ fontSize: 25, margin: "52px 0 10px" }}>Sa facturation</h2>
+        <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
+          Ce que le parent vous a demandé pour ses factures. Repris automatiquement sur
+          chaque nouvelle facture, et modifiable ensuite au cas par cas sur le
+          brouillon. Laissé vide, la facture reprend le nom du dossier.
+        </p>
+
+        <form action={enregistrerFacturation} className="carte" style={{ marginTop: 16 }}>
+          <input type="hidden" name="id" value={id} />
+          <div style={{ display: "grid", gap: 14 }}>
+            <div>
+              <label htmlFor="facturation_nom" style={etiquette}>
+                Facturer au nom de
+              </label>
+              <input
+                id="facturation_nom"
+                name="facturation_nom"
+                type="text"
+                defaultValue={dossier.facturation_nom ?? ""}
+                placeholder={`${dossier.prenom ?? ""} ${dossier.nom ?? ""}`.trim()}
+                style={saisie}
+              />
+            </div>
+            <div>
+              <label htmlFor="facturation_adresse" style={etiquette}>
+                Adresse à faire figurer
+              </label>
+              <textarea
+                id="facturation_adresse"
+                name="facturation_adresse"
+                rows={3}
+                defaultValue={dossier.facturation_adresse ?? ""}
+                placeholder={"12 rue des Lilas\n13007 Marseille"}
+                style={{ ...saisie, minHeight: 0, padding: "11px 14px", resize: "vertical" }}
+              />
+            </div>
+            <div>
+              <label htmlFor="facturation_note" style={etiquette}>
+                Mention à porter sur les factures
+              </label>
+              <textarea
+                id="facturation_note"
+                name="facturation_note"
+                rows={2}
+                defaultValue={dossier.facturation_note ?? ""}
+                placeholder="Règlement en deux fois convenu, référence employeur…"
+                style={{ ...saisie, minHeight: 0, padding: "11px 14px", resize: "vertical" }}
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            className="bouton bouton--secondaire bouton--compact"
+            style={{ marginTop: 16 }}
+          >
+            Enregistrer
+          </button>
+        </form>
 
         <h2 style={{ fontSize: 25, margin: "52px 0 16px" }}>Agir sur ce dossier</h2>
 

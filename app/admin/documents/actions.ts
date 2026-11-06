@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exigerAdmin } from "@/lib/admin";
 import { clientAdmin } from "@/lib/supabase";
+import { nouveauDocument } from "@/lib/emails";
 
 // Ces valeurs restent internes : un fichier « use server » ne peut
 // exporter que des fonctions asynchrones. Le composant de dépôt tient
@@ -78,24 +79,27 @@ export async function finaliserDepot(entree: {
   nom: string;
   type: string;
   taille: number;
-}): Promise<{ deposes: number; erreur: string | null }> {
+  prevenir?: boolean;
+}): Promise<{ deposes: number; prevenus: number; erreur: string | null }> {
   await exigerAdmin();
 
   if (!CHEMIN_TEMPORAIRE.test(entree.chemin)) {
-    return { deposes: 0, erreur: "chemin" };
+    return { deposes: 0, prevenus: 0, erreur: "chemin" };
   }
-  if (!TYPES_ACCEPTES.includes(entree.type)) return { deposes: 0, erreur: "type" };
+  if (!TYPES_ACCEPTES.includes(entree.type)) return { deposes: 0, prevenus: 0, erreur: "type" };
   if (entree.taille <= 0 || entree.taille > TAILLE_MAX) {
-    return { deposes: 0, erreur: "taille" };
+    return { deposes: 0, prevenus: 0, erreur: "taille" };
   }
 
   const destinataires = [...new Set(entree.dossierIds.filter(Boolean))];
-  if (destinataires.length === 0) return { deposes: 0, erreur: "dossier" };
-  if (destinataires.length > MAX_DESTINATAIRES) return { deposes: 0, erreur: "trop" };
+  if (destinataires.length === 0) return { deposes: 0, prevenus: 0, erreur: "dossier" };
+  if (destinataires.length > MAX_DESTINATAIRES) return { deposes: 0, prevenus: 0, erreur: "trop" };
 
   const supabase = clientAdmin();
   const extension = extensionDe(entree.nom);
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com";
   let deposes = 0;
+  let prevenus = 0;
 
   for (const dossierId of destinataires) {
     const cible = `${dossierId}/${crypto.randomUUID()}${extension}`;
@@ -125,6 +129,35 @@ export async function finaliserDepot(entree: {
     }
 
     deposes += 1;
+
+    // L'élève n'est averti que si Pauline l'a demandé : la plupart des
+    // dépôts suivent un cours dont l'élève sort à peine.
+    if (entree.prevenir) {
+      const { data: dossier } = await supabase
+        .from("dossiers")
+        .select("email, prenom")
+        .eq("id", dossierId)
+        .eq("anonymise", false)
+        .maybeSingle();
+
+      if (dossier) {
+        const resultat = await nouveauDocument({
+          destinataire: dossier.email,
+          prenom: dossier.prenom ?? "",
+          nomFichier: entree.nom,
+          lien: `${site}/mon-espace`,
+        });
+        if (resultat.ok) prevenus += 1;
+
+        await supabase.from("journal").insert({
+          acteur: "pauline",
+          dossier_id: dossierId,
+          objet: "email",
+          action: resultat.ok ? "document_signale" : "document_signale_echec",
+          details: { fichier: entree.nom, detail: resultat.detail },
+        });
+      }
+    }
   }
 
   await supabase.storage.from("documents").remove([entree.chemin]);
@@ -132,7 +165,7 @@ export async function finaliserDepot(entree: {
   revalidatePath("/admin/documents");
   for (const dossierId of destinataires) revalidatePath(`/admin/eleves/${dossierId}`);
 
-  return { deposes, erreur: deposes === 0 ? "depot" : null };
+  return { deposes, prevenus, erreur: deposes === 0 ? "depot" : null };
 }
 
 export async function supprimerDocument(formulaire: FormData): Promise<void> {

@@ -736,9 +736,13 @@ table.liste .droite { text-align: right; }
 .facture__parties {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px;
+  gap: 28px;
   padding: 28px 0;
 }
+
+/* Une adresse email un peu longue débordait sur la colonne voisine. */
+.facture__parties > div { min-width: 0; }
+.facture__parties p { overflow-wrap: anywhere; }
 
 .facture__lignes { margin-top: 8px; }
 .facture__lignes th { padding-left: 0; padding-right: 0; }
@@ -890,4 +894,73 @@ table.liste .droite { text-align: right; }
 
 @media (prefers-reduced-motion: reduce) {
   .depot__jauge-barre { transition: none; }
+}
+
+.case-a-cocher {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--bordure);
+  border-radius: 4px;
+  background: var(--creme-fonce);
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--foret);
+  cursor: pointer;
+}
+.case-a-cocher input { margin-top: 3px; flex: none; }
+.case-a-cocher__aide {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--texte-gris);
+}
+
+.ligne-facture {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px 150px 90px;
+  gap: 14px;
+  align-items: end;
+  padding: 18px 20px;
+}
+.ligne-facture__desc { min-width: 0; }
+.ligne-facture__petit { min-width: 0; }
+.ligne-facture__total {
+  font-family: var(--serif);
+  font-size: 19px;
+  color: var(--foret);
+  text-align: right;
+  padding-bottom: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.total-brouillon {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 2px solid var(--foret);
+  font-size: 16px;
+  color: var(--foret);
+}
+.total-brouillon strong { font-family: var(--serif); font-size: 28px; font-weight: 500; }
+
+@media (max-width: 760px) {
+  .ligne-facture { grid-template-columns: 1fr 1fr; }
+  .ligne-facture__desc { grid-column: 1 / -1; }
+  .ligne-facture__total { grid-column: 1 / -1; text-align: left; padding-bottom: 0; }
+}
+
+.facture__note {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-left: 2px solid var(--or-clair);
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--texte-doux);
+  white-space: pre-line;
 }

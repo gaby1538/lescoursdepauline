@@ -58,6 +58,12 @@ export async function genererFactures(formulaire: FormData): Promise<void> {
   for (const [dossierId, liste] of parDossier) {
     const total = liste.reduce((somme, c) => somme + c.prix_cents, 0);
 
+    const { data: reglages } = await supabase
+      .from("dossiers")
+      .select("facturation_nom, facturation_adresse, facturation_note")
+      .eq("id", dossierId)
+      .maybeSingle();
+
     const { data: facture, error } = await supabase
       .from("factures")
       .insert({
@@ -65,6 +71,9 @@ export async function genererFactures(formulaire: FormData): Promise<void> {
         periode_debut: debut,
         periode_fin: fin,
         total_cents: total,
+        destinataire_nom: reglages?.facturation_nom ?? null,
+        destinataire_adresse: reglages?.facturation_adresse ?? null,
+        note: reglages?.facturation_note ?? null,
       })
       .select("id")
       .single();
@@ -99,6 +108,122 @@ export async function genererFactures(formulaire: FormData): Promise<void> {
   retour(`?ok=${creees}`);
 }
 
+/* ---------------------------------------------------------------------
+   Modifier un brouillon
+   ------------------------------------------------------------------ */
+
+function centimes(valeur: string): number | null {
+  const propre = valeur.replace(/\s|€/g, "").replace(",", ".");
+  const n = Number(propre);
+  if (!Number.isFinite(n) || Math.abs(n) > 100000) return null;
+  return Math.round(n * 100);
+}
+
+function nombre(valeur: string): number | null {
+  const n = Number(valeur.replace(",", "."));
+  if (!Number.isFinite(n) || Math.abs(n) > 9999) return null;
+  return Math.round(n * 100) / 100;
+}
+
+async function estBrouillon(id: string): Promise<boolean> {
+  const { data } = await clientAdmin()
+    .from("factures")
+    .select("statut")
+    .eq("id", id)
+    .maybeSingle();
+  return data?.statut === "brouillon";
+}
+
+/**
+ * Enregistre les lignes et l'en-tête d'un brouillon.
+ *
+ * Le total n'est pas écrit ici : un déclencheur le recalcule à partir
+ * des lignes. Une facture dont le total ne serait pas la somme de ses
+ * lignes n'aurait aucune valeur.
+ */
+export async function enregistrerFacture(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const id = String(formulaire.get("id") ?? "");
+  if (!id) retour();
+  if (!(await estBrouillon(id))) retour("?erreur=emise");
+
+  const supabase = clientAdmin();
+
+  const ids = formulaire.getAll("ligne_id").map(String);
+  const descriptions = formulaire.getAll("description").map(String);
+  const quantites = formulaire.getAll("quantite").map(String);
+  const prix = formulaire.getAll("prix").map(String);
+
+  for (let i = 0; i < ids.length; i += 1) {
+    const description = descriptions[i]?.trim();
+    const q = nombre(quantites[i] ?? "");
+    const pu = centimes(prix[i] ?? "");
+    if (!description || q === null || pu === null) continue;
+
+    await supabase
+      .from("lignes_facture")
+      .update({
+        description: description.slice(0, 300),
+        quantite: q,
+        prix_unitaire_cents: pu,
+        total_cents: Math.round(q * pu),
+      })
+      .eq("id", ids[i])
+      .eq("facture_id", id);
+  }
+
+  // Une ligne libre : une remise, un forfait de stage, un rattrapage.
+  const nouvelle = String(formulaire.get("nouvelle_description") ?? "").trim();
+  if (nouvelle) {
+    const q = nombre(String(formulaire.get("nouvelle_quantite") ?? "1")) ?? 1;
+    const pu = centimes(String(formulaire.get("nouveau_prix") ?? "0"));
+    if (pu !== null) {
+      const { count } = await supabase
+        .from("lignes_facture")
+        .select("id", { count: "exact", head: true })
+        .eq("facture_id", id);
+
+      await supabase.from("lignes_facture").insert({
+        facture_id: id,
+        description: nouvelle.slice(0, 300),
+        quantite: q,
+        prix_unitaire_cents: pu,
+        total_cents: Math.round(q * pu),
+        ordre: count ?? 0,
+      });
+    }
+  }
+
+  await supabase
+    .from("factures")
+    .update({
+      destinataire_nom: String(formulaire.get("destinataire_nom") ?? "").trim() || null,
+      destinataire_adresse:
+        String(formulaire.get("destinataire_adresse") ?? "").trim() || null,
+      note: String(formulaire.get("note") ?? "").trim() || null,
+    })
+    .eq("id", id);
+
+  revalidatePath(`/admin/factures/${id}/modifier`);
+  revalidatePath(`/factures/${id}`);
+  redirect(`/admin/factures/${id}/modifier?ok=1`);
+}
+
+export async function supprimerLigne(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const id = String(formulaire.get("id") ?? "");
+  const facture = String(formulaire.get("facture") ?? "");
+  if (!id || !facture) retour();
+  if (!(await estBrouillon(facture))) retour("?erreur=emise");
+
+  await clientAdmin().from("lignes_facture").delete().eq("id", id).eq("facture_id", facture);
+
+  revalidatePath(`/admin/factures/${facture}/modifier`);
+  redirect(`/admin/factures/${facture}/modifier?ok=1`);
+}
+
 export async function emettreEtEnvoyer(formulaire: FormData): Promise<void> {
   await exigerAdmin();
 
@@ -106,6 +231,13 @@ export async function emettreEtEnvoyer(formulaire: FormData): Promise<void> {
   if (!id) retour();
 
   const supabase = clientAdmin();
+
+  const { count: nbLignes } = await supabase
+    .from("lignes_facture")
+    .select("id", { count: "exact", head: true })
+    .eq("facture_id", id);
+
+  if ((nbLignes ?? 0) === 0) retour("?erreur=vide");
 
   const { data: numero, error } = await supabase.rpc("attribuer_numero_facture", {
     facture: id,

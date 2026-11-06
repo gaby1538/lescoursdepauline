@@ -100,7 +100,17 @@ export default async function Facture({
             <div>
               <p className="surtitre">Facturé à</p>
               <p style={{ fontSize: 15.5, lineHeight: 1.6, color: "var(--texte)" }}>
-                {client?.prenom} {client?.nom}
+                {facture.destinataire_nom ?? `${client?.prenom ?? ""} ${client?.nom ?? ""}`}
+                {facture.destinataire_adresse
+                  ? facture.destinataire_adresse
+                      .split("\n")
+                      .map((ligne: string) => (
+                        <span key={ligne}>
+                          <br />
+                          {ligne}
+                        </span>
+                      ))
+                  : null}
                 <br />
                 {client?.email}
               </p>
@@ -150,6 +160,10 @@ export default async function Facture({
             <span>Total à régler</span>
             <strong>{euros(facture.total_cents)}</strong>
           </div>
+
+          {facture.note ? (
+            <p className="facture__note">{facture.note}</p>
+          ) : null}
 
           <p className="facture__mention">TVA non applicable, article 293 B du CGI.</p>
 

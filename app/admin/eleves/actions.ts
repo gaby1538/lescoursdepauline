@@ -175,3 +175,28 @@ export async function retirerDeLaListeNoire(formulaire: FormData): Promise<void>
   if (id) await clientAdmin().from("liste_noire").delete().eq("id", id);
   retour("/admin/eleves", "?ok=1");
 }
+
+/**
+ * Ce que le parent demande pour ses factures : un autre nom, une
+ * adresse, une mention. Enregistré sur le dossier, repris
+ * automatiquement sur chaque nouvelle facture — et modifiable ensuite
+ * sur le brouillon, au cas par cas.
+ */
+export async function enregistrerFacturation(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const id = String(formulaire.get("id") ?? "");
+  if (!id) retour("/admin/eleves");
+
+  await clientAdmin()
+    .from("dossiers")
+    .update({
+      facturation_nom: String(formulaire.get("facturation_nom") ?? "").trim() || null,
+      facturation_adresse:
+        String(formulaire.get("facturation_adresse") ?? "").trim() || null,
+      facturation_note: String(formulaire.get("facturation_note") ?? "").trim() || null,
+    })
+    .eq("id", id);
+
+  retour(`/admin/eleves/${id}`, "?ok=1");
+}
