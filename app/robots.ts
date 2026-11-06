@@ -30,7 +30,6 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "*",
         allow: "/",
         // Rien de personnel n'a à figurer dans un moteur de recherche.
-        allow: "/agenda/",
         disallow: ["/admin", "/mon-espace", "/factures", "/documents", "/api"],
       },
     ],
