@@ -210,16 +210,17 @@ export async function enregistrerFacturation(formulaire: FormData): Promise<void
  * avant ne doit pas être facturé parce que la réponse a tardé. C'est le
  * déclencheur en base qui s'en charge.
  */
-export async function repondreAnnulation(formulaire: FormData): Promise<void> {
+export async function repondreAnnulation(
+  decision: string,
+  formulaire: FormData
+): Promise<void> {
   await exigerAdmin();
 
   const id = String(formulaire.get("id") ?? "");
-  const dossierId = String(formulaire.get("dossier") ?? "");
-  const decision = String(formulaire.get("decision") ?? "");
   const reponse = String(formulaire.get("reponse") ?? "").trim().slice(0, 500) || null;
   const ou = destination(formulaire, "/admin");
 
-  if (!id || !["acceptee", "refusee"].includes(decision)) retour(ou, "?erreur=1");
+  if (!id || !["acceptee", "refusee"].includes(decision)) retour(ou, "?erreur=decision");
 
   const supabase = clientAdmin();
 
@@ -229,11 +230,11 @@ export async function repondreAnnulation(formulaire: FormData): Promise<void> {
     .eq("id", id)
     .maybeSingle();
 
-  if (!cours || cours.statut !== "reservee") retour(ou, "?erreur=1");
+  if (!cours || cours.statut !== "reservee") retour(ou, "?erreur=introuvable");
 
   const maintenant = new Date().toISOString();
 
-  await supabase
+  const { error } = await supabase
     .from("reservations")
     .update({
       ...(decision === "acceptee" ? { statut: "annulee_dans_delai" } : {}),
@@ -242,6 +243,11 @@ export async function repondreAnnulation(formulaire: FormData): Promise<void> {
       annulation_traitee_le: maintenant,
     })
     .eq("id", id);
+
+  if (error) {
+    console.error("réponse à l'annulation", error);
+    retour(ou, "?erreur=enregistrement");
+  }
 
   // On relit : le déclencheur a peut-être requalifié en hors délai.
   const { data: apres } = await supabase

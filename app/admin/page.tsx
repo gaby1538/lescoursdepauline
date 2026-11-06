@@ -19,7 +19,18 @@ type Prochain = {
   } | null;
 };
 
-export default async function TableauDeBord() {
+const MESSAGES: Record<string, string> = {
+  decision: "Aucune décision n'a été transmise. Réessayez.",
+  introuvable: "Ce cours n'est plus en attente : il a peut-être déjà été traité.",
+  enregistrement: "La base a refusé l'enregistrement. Réessayez dans un instant.",
+};
+
+export default async function TableauDeBord({
+  searchParams,
+}: {
+  searchParams: Promise<{ ok?: string; erreur?: string }>;
+}) {
+  const { ok, erreur } = await searchParams;
   const supabase = clientAdmin();
   const maintenant = new Date().toISOString();
   const debutMois = `${new Date().toISOString().slice(0, 7)}-01`;
@@ -111,6 +122,17 @@ export default async function TableauDeBord() {
           </Link>
         </div>
 
+        {erreur && (
+          <p className="alerte" style={{ marginTop: 0, marginBottom: 24 }}>
+            {MESSAGES[erreur] ?? "L'action n'a pas abouti."}
+          </p>
+        )}
+        {ok && (
+          <p className="succes" style={{ marginTop: 0, marginBottom: 24 }}>
+            C&apos;est fait.
+          </p>
+        )}
+
         {suspension !== "aucune" && (
           <p className="alerte" style={{ marginTop: 0, marginBottom: 28 }}>
             <strong>
@@ -195,9 +217,8 @@ export default async function TableauDeBord() {
                       </p>
                     ) : null}
 
-                    <form action={repondreAnnulation} style={{ marginTop: 14 }}>
+                    <form style={{ marginTop: 14 }}>
                       <input type="hidden" name="id" value={r.id} />
-                      <input type="hidden" name="dossier" value={r.dossier_id} />
                       <input type="hidden" name="retour" value="/admin" />
                       <label htmlFor={`rep-${r.id}`} style={etiquette}>
                         Votre réponse (facultative, transmise à l&apos;élève)
@@ -210,18 +231,19 @@ export default async function TableauDeBord() {
                         style={saisie}
                       />
                       <div className="actions-ligne" style={{ justifyContent: "flex-start", marginTop: 14 }}>
+                        {/* La valeur d'un bouton de soumission n'arrive pas
+                            jusqu'à une action serveur : la décision est liée
+                            à l'action elle-même. */}
                         <button
                           type="submit"
-                          name="decision"
-                          value="acceptee"
+                          formAction={repondreAnnulation.bind(null, "acceptee")}
                           className="bouton bouton--principal bouton--compact"
                         >
                           Accepter
                         </button>
                         <button
                           type="submit"
-                          name="decision"
-                          value="refusee"
+                          formAction={repondreAnnulation.bind(null, "refusee")}
                           className="bouton bouton--secondaire bouton--compact"
                         >
                           Refuser
