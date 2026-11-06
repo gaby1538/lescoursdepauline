@@ -11,9 +11,16 @@ export type EleveChoisissable = {
   email: string;
 };
 
-export default function ChoixEleves({ eleves }: { eleves: EleveChoisissable[] }) {
+export default function ChoixEleves({
+  eleves,
+  coches,
+  onChange,
+}: {
+  eleves: EleveChoisissable[];
+  coches: string[];
+  onChange: (ids: string[]) => void;
+}) {
   const [filtre, setFiltre] = useState("");
-  const [coches, setCoches] = useState<string[]>([]);
 
   const visibles = useMemo(() => {
     const q = filtre.trim().toLowerCase();
@@ -31,17 +38,15 @@ export default function ChoixEleves({ eleves }: { eleves: EleveChoisissable[] })
     visibles.length > 0 && visibles.every((e) => coches.includes(e.id));
 
   function basculer(id: string) {
-    setCoches((liste) =>
-      liste.includes(id) ? liste.filter((x) => x !== id) : [...liste, id]
-    );
+    onChange(coches.includes(id) ? coches.filter((x) => x !== id) : [...coches, id]);
   }
 
   function toutBasculer() {
     const ids = visibles.map((e) => e.id);
-    setCoches((liste) =>
+    onChange(
       tousVisiblesCoches
-        ? liste.filter((x) => !ids.includes(x))
-        : [...new Set([...liste, ...ids])]
+        ? coches.filter((x) => !ids.includes(x))
+        : [...new Set([...coches, ...ids])]
     );
   }
 
@@ -64,15 +69,13 @@ export default function ChoixEleves({ eleves }: { eleves: EleveChoisissable[] })
       <div className="choix__liste">
         {visibles.length === 0 ? (
           <p style={{ padding: 14, fontSize: 14.5, color: "var(--texte-gris)" }}>
-            Aucun élève ne correspond.
+            {eleves.length === 0 ? "Aucun élève enregistré." : "Aucun élève ne correspond."}
           </p>
         ) : (
           visibles.map((e) => (
             <label key={e.id} className="choix__ligne">
               <input
                 type="checkbox"
-                name="dossier_ids"
-                value={e.id}
                 checked={coches.includes(e.id)}
                 onChange={() => basculer(e.id)}
               />

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { clientAdmin } from "@/lib/supabase";
-import { etiquette, saisie } from "@/components/Champs";
-import ChoixEleves, { type EleveChoisissable } from "./ChoixEleves";
-import { deposerDocument, supprimerDocument } from "./actions";
+import DepotDocument from "./DepotDocument";
+import { type EleveChoisissable } from "./ChoixEleves";
+import { supprimerDocument } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -67,50 +67,13 @@ export default async function Documents({
           au bout de quelques minutes.
         </p>
 
-        {erreur && <p className="alerte">{MESSAGES[erreur] ?? "Dépôt impossible."}</p>}
-        {ok && (
-          <p className="succes">
-            {Number(ok) > 1
-              ? `Document déposé pour ${ok} élèves.`
-              : "Document déposé."}
-          </p>
-        )}
+        {erreur && <p className="alerte">{MESSAGES[erreur] ?? "Action impossible."}</p>}
+        {ok && <p className="succes">C&apos;est fait.</p>}
 
-        <form action={deposerDocument} className="carte" style={{ marginTop: 28 }}>
-          <p className="surtitre" style={{ marginBottom: 16 }}>
-            Déposer un document
-          </p>
-          <input type="hidden" name="retour" value="/admin/documents" />
-          <div style={{ display: "grid", gap: 14 }}>
-            <div>
-              <p style={etiquette}>Pour qui</p>
-              <ChoixEleves eleves={(dossiers.data ?? []) as EleveChoisissable[]} />
-            </div>
-            <div>
-              <label htmlFor="fichier" style={etiquette}>
-                Fichier
-              </label>
-              <input
-                id="fichier"
-                name="fichier"
-                type="file"
-                required
-                accept=".pdf,.jpg,.jpeg,.png,.heic"
-                style={{ ...saisie, padding: "11px 12px", height: "auto" }}
-              />
-              <p style={{ marginTop: 7, fontSize: 13, color: "var(--texte-gris)" }}>
-                PDF, JPEG, PNG ou HEIC. 10 Mo au maximum.
-              </p>
-            </div>
-          </div>
-          <button
-            type="submit"
-            className="bouton bouton--principal"
-            style={{ marginTop: 20, width: "100%" }}
-          >
-            Déposer
-          </button>
-        </form>
+        <DepotDocument
+          titre="Déposer un document"
+          eleves={(dossiers.data ?? []) as EleveChoisissable[]}
+        />
 
         <h2 style={{ fontSize: 25, margin: "48px 0 16px" }}>Déposés</h2>
         <div className="tableau-enveloppe">

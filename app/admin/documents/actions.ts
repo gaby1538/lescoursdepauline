@@ -5,85 +5,121 @@ import { revalidatePath } from "next/cache";
 import { exigerAdmin } from "@/lib/admin";
 import { clientAdmin } from "@/lib/supabase";
 
-const TYPES = ["application/pdf", "image/jpeg", "image/png", "image/heic"];
-const TAILLE_MAX = 10 * 1024 * 1024;
+// Ces valeurs restent internes : un fichier « use server » ne peut
+// exporter que des fonctions asynchrones. Le composant de dépôt tient
+// sa propre copie pour refuser un fichier avant même de l'envoyer.
+const TYPES_ACCEPTES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/heic",
+];
+const TAILLE_MAX = 25 * 1024 * 1024;
+
 const MAX_DESTINATAIRES = 40;
+const CHEMIN_TEMPORAIRE = /^depots\/[0-9a-f-]{36}(\.[a-z0-9]{1,8})?$/i;
 
-/** Le champ vient du navigateur : on ne revient que dans l'administration. */
-function destination(formulaire: FormData): string {
-  const demandee = String(formulaire.get("retour") ?? "");
-  return /^\/admin(\/[\w-]*)*$/.test(demandee) ? demandee : "/admin/documents";
-}
+type Preparation =
+  | { ok: true; chemin: string; url: string }
+  | { ok: false; erreur: string };
 
-function retour(chemin: string, parametre?: string): never {
-  revalidatePath(chemin);
-  redirect(`${chemin}${parametre ?? ""}`);
+function extensionDe(nom: string): string {
+  const point = nom.lastIndexOf(".");
+  if (point <= 0) return "";
+  const brute = nom.slice(point + 1).replace(/[^a-z0-9]/gi, "");
+  return brute ? `.${brute.slice(0, 8).toLowerCase()}` : "";
 }
 
 /**
- * Dépose un fichier dans le dossier d'un élève, ou de plusieurs à la
- * fois. Chaque élève reçoit sa propre copie : supprimer le document
- * d'un élève ne doit pas le faire disparaître chez les autres.
+ * Première étape : le serveur vérifie l'habilitation et le fichier
+ * annoncé, puis rend une adresse signée vers laquelle le navigateur
+ * téléversera directement.
+ *
+ * Le fichier ne traverse plus le site. C'est ce qui permet de dépasser
+ * les 4,5 Mo que Vercel accepte dans le corps d'une requête — au-delà,
+ * la page tombait en erreur au lieu d'afficher un message.
  */
-export async function deposerDocument(formulaire: FormData): Promise<void> {
+export async function preparerDepot(entree: {
+  nom: string;
+  type: string;
+  taille: number;
+}): Promise<Preparation> {
   await exigerAdmin();
 
-  const ou = destination(formulaire);
+  if (!TYPES_ACCEPTES.includes(entree.type)) return { ok: false, erreur: "type" };
+  if (!Number.isFinite(entree.taille) || entree.taille <= 0) {
+    return { ok: false, erreur: "fichier" };
+  }
+  if (entree.taille > TAILLE_MAX) return { ok: false, erreur: "taille" };
 
-  const destinataires = [
-    ...new Set(
-      [
-        ...formulaire.getAll("dossier_ids").map(String),
-        String(formulaire.get("dossier_id") ?? ""),
-      ].filter(Boolean)
-    ),
-  ];
+  const chemin = `depots/${crypto.randomUUID()}${extensionDe(entree.nom)}`;
 
-  const fichier = formulaire.get("fichier");
+  const { data, error } = await clientAdmin()
+    .storage.from("documents")
+    .createSignedUploadUrl(chemin);
 
-  if (destinataires.length === 0) retour(ou, "?erreur=dossier");
-  if (destinataires.length > MAX_DESTINATAIRES) retour(ou, "?erreur=trop");
-  if (!(fichier instanceof File) || fichier.size === 0) retour(ou, "?erreur=fichier");
-  if (fichier.size > TAILLE_MAX) retour(ou, "?erreur=taille");
-  if (!TYPES.includes(fichier.type)) retour(ou, "?erreur=type");
+  if (error || !data) {
+    console.error("adresse de dépôt", error);
+    return { ok: false, erreur: "preparation" };
+  }
+
+  return { ok: true, chemin, url: data.signedUrl };
+}
+
+/**
+ * Seconde étape : le fichier est arrivé au dépôt temporaire. On le
+ * recopie dans le dossier de chaque élève — chacun sa copie, pour
+ * qu'une suppression chez l'un ne touche pas les autres — puis on
+ * efface le temporaire.
+ */
+export async function finaliserDepot(entree: {
+  chemin: string;
+  dossierIds: string[];
+  nom: string;
+  type: string;
+  taille: number;
+}): Promise<{ deposes: number; erreur: string | null }> {
+  await exigerAdmin();
+
+  if (!CHEMIN_TEMPORAIRE.test(entree.chemin)) {
+    return { deposes: 0, erreur: "chemin" };
+  }
+  if (!TYPES_ACCEPTES.includes(entree.type)) return { deposes: 0, erreur: "type" };
+  if (entree.taille <= 0 || entree.taille > TAILLE_MAX) {
+    return { deposes: 0, erreur: "taille" };
+  }
+
+  const destinataires = [...new Set(entree.dossierIds.filter(Boolean))];
+  if (destinataires.length === 0) return { deposes: 0, erreur: "dossier" };
+  if (destinataires.length > MAX_DESTINATAIRES) return { deposes: 0, erreur: "trop" };
 
   const supabase = clientAdmin();
-
-  // Lu une seule fois : un File ne se relit pas d'un envoi à l'autre.
-  const octets = new Uint8Array(await fichier.arrayBuffer());
-
-  // Le nom d'origine ne sert qu'à l'affichage. Le chemin est construit
-  // par le serveur, pour qu'un nom de fichier malicieux ne puisse pas
-  // sortir du dossier de l'élève.
-  const point = fichier.name.lastIndexOf(".");
-  const extension =
-    point > 0 ? "." + fichier.name.slice(point + 1).replace(/[^a-z0-9]/gi, "").slice(0, 8) : "";
-
+  const extension = extensionDe(entree.nom);
   let deposes = 0;
 
   for (const dossierId of destinataires) {
-    const chemin = `${dossierId}/${crypto.randomUUID()}${extension}`;
+    const cible = `${dossierId}/${crypto.randomUUID()}${extension}`;
 
-    const { error: erreurDepot } = await supabase.storage
+    const { error: erreurCopie } = await supabase.storage
       .from("documents")
-      .upload(chemin, octets, { contentType: fichier.type, upsert: false });
+      .copy(entree.chemin, cible);
 
-    if (erreurDepot) {
-      console.error("dépôt document", dossierId, erreurDepot);
+    if (erreurCopie) {
+      console.error("copie document", dossierId, erreurCopie);
       continue;
     }
 
     const { error } = await supabase.from("documents").insert({
       dossier_id: dossierId,
-      chemin,
-      nom_fichier: fichier.name.slice(0, 160),
-      type_mime: fichier.type,
-      taille_octets: fichier.size,
+      chemin: cible,
+      nom_fichier: entree.nom.slice(0, 160),
+      type_mime: entree.type,
+      taille_octets: entree.taille,
       depose_par: "pauline",
     });
 
     if (error) {
-      await supabase.storage.from("documents").remove([chemin]);
+      await supabase.storage.from("documents").remove([cible]);
       console.error("enregistrement document", dossierId, error);
       continue;
     }
@@ -91,26 +127,33 @@ export async function deposerDocument(formulaire: FormData): Promise<void> {
     deposes += 1;
   }
 
-  if (deposes === 0) retour(ou, "?erreur=depot");
-  retour(ou, `?ok=${deposes}`);
+  await supabase.storage.from("documents").remove([entree.chemin]);
+
+  revalidatePath("/admin/documents");
+  for (const dossierId of destinataires) revalidatePath(`/admin/eleves/${dossierId}`);
+
+  return { deposes, erreur: deposes === 0 ? "depot" : null };
 }
 
 export async function supprimerDocument(formulaire: FormData): Promise<void> {
   await exigerAdmin();
 
-  const ou = destination(formulaire);
+  const demandee = String(formulaire.get("retour") ?? "");
+  const ou = /^\/admin(\/[\w-]*)*$/.test(demandee) ? demandee : "/admin/documents";
+
   const id = String(formulaire.get("id") ?? "");
-  if (!id) retour(ou);
+  if (id) {
+    const supabase = clientAdmin();
+    const { data } = await supabase
+      .from("documents")
+      .select("chemin")
+      .eq("id", id)
+      .maybeSingle();
 
-  const supabase = clientAdmin();
-  const { data } = await supabase
-    .from("documents")
-    .select("chemin")
-    .eq("id", id)
-    .maybeSingle();
+    if (data?.chemin) await supabase.storage.from("documents").remove([data.chemin]);
+    await supabase.from("documents").delete().eq("id", id);
+  }
 
-  if (data?.chemin) await supabase.storage.from("documents").remove([data.chemin]);
-  await supabase.from("documents").delete().eq("id", id);
-
-  retour(ou, "?ok=1");
+  revalidatePath(ou);
+  redirect(`${ou}?ok=1`);
 }

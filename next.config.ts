@@ -4,9 +4,9 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   experimental: {
     serverActions: {
-      // Les documents pédagogiques montent jusqu'à 10 Mo, comme le
-      // contrôle posé sur la table. La limite par défaut est de 1 Mo.
-      bodySizeLimit: "12mb",
+      // Les documents ne transitent plus par le site : ils montent en
+      // direct vers le stockage. Il ne reste ici que des formulaires.
+      bodySizeLimit: "2mb",
     },
   },
 };

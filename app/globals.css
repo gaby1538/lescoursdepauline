@@ -855,3 +855,39 @@ table.liste .droite { text-align: right; }
 .choix__contact { font-size: 13px; color: var(--texte-gris); }
 
 .choix__compte { margin-top: 10px; font-size: 13.5px; color: var(--texte-gris); }
+
+.depot__champ {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  border: 1px solid var(--bordure);
+  border-radius: 4px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 14.5px;
+  color: var(--texte);
+}
+
+.depot__jauge {
+  position: relative;
+  margin-top: 16px;
+  padding: 10px 14px;
+  border-radius: 4px;
+  background: var(--creme-fonce);
+  border: 1px solid var(--bordure);
+  overflow: hidden;
+  font-size: 13.5px;
+  color: var(--foret);
+}
+.depot__jauge span { position: relative; }
+
+.depot__jauge-barre {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--or-clair);
+  transition: width 0.2s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .depot__jauge-barre { transition: none; }
+}

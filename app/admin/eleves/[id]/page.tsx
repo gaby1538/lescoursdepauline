@@ -4,7 +4,8 @@ import { clientAdmin } from "@/lib/supabase";
 import { creneauLong } from "@/lib/dates";
 import { euros } from "@/lib/constantes";
 import { etiquette, saisie } from "@/components/Champs";
-import { deposerDocument, supprimerDocument } from "../../documents/actions";
+import { supprimerDocument } from "../../documents/actions";
+import DepotDocument from "../../documents/DepotDocument";
 import {
   basculerSuspension,
   annulerCours,
@@ -215,34 +216,12 @@ export default async function FicheEleve({
           )}
         </div>
 
-        <form action={deposerDocument} className="carte" style={{ marginTop: 18 }}>
-          <input type="hidden" name="dossier_id" value={id} />
-          <input type="hidden" name="retour" value={`/admin/eleves/${id}`} />
-          <p className="surtitre" style={{ marginBottom: 14 }}>
-            Déposer pour {dossier.eleve_prenom ?? "cet élève"}
-          </p>
-          <label htmlFor="fichier" style={etiquette}>
-            Fichier
-          </label>
-          <input
-            id="fichier"
-            name="fichier"
-            type="file"
-            required
-            accept=".pdf,.jpg,.jpeg,.png,.heic"
-            style={{ ...saisie, padding: "11px 12px", height: "auto" }}
+        <div style={{ marginTop: 18 }}>
+          <DepotDocument
+            titre={`Déposer pour ${dossier.eleve_prenom ?? "cet élève"}`}
+            dossierId={id}
           />
-          <p style={{ marginTop: 7, fontSize: 13, color: "var(--texte-gris)" }}>
-            PDF, JPEG, PNG ou HEIC. 10 Mo au maximum.
-          </p>
-          <button
-            type="submit"
-            className="bouton bouton--principal bouton--compact"
-            style={{ marginTop: 16 }}
-          >
-            Déposer
-          </button>
-        </form>
+        </div>
 
         <h2 style={{ fontSize: 25, margin: "52px 0 16px" }}>Agir sur ce dossier</h2>
 
