@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { clientAdmin } from "@/lib/supabase";
 import { etiquette, saisie } from "@/components/Champs";
 import { euros, GROUPES } from "@/lib/constantes";
@@ -34,8 +35,19 @@ export default async function Reglages({
     );
   }
 
-  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com";
-  const lienAgenda = `${site}/agenda/${p.jeton_agenda}.ics`;
+  // L'adresse se construit à partir de celle qu'on visite, et non d'une
+  // variable : tant que le domaine n'est pas branché, une adresse en
+  // .com serait affichée alors qu'elle ne répond pas encore.
+  const entetes = await headers();
+  const hote = entetes.get("x-forwarded-host") ?? entetes.get("host");
+  const protocole = entetes.get("x-forwarded-proto") ?? "https";
+  const site = hote
+    ? `${protocole}://${hote}`
+    : process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com";
+
+  const lienAgenda = p.jeton_agenda
+    ? `${site}/agenda/${p.jeton_agenda}.ics`
+    : null;
 
   const tarif = (groupe: string, type: string) =>
     tarifs?.find((t) => t.groupe === groupe && t.type === type)?.prix_cents ?? 0;
@@ -289,7 +301,14 @@ export default async function Reglages({
 
         <div className="carte" style={{ marginTop: 16 }}>
           <p style={etiquette}>Adresse de l&apos;abonnement</p>
-          <p className="agenda__lien">{lienAgenda}</p>
+          {lienAgenda ? (
+            <p className="agenda__lien">{lienAgenda}</p>
+          ) : (
+            <p className="alerte" style={{ marginTop: 0 }}>
+              La migration <code>0011_agenda.sql</code> n&apos;a pas encore été
+              exécutée dans Supabase : l&apos;adresse n&apos;existe pas.
+            </p>
+          )}
 
           <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.7, color: "var(--texte-doux)" }}>
             <strong style={{ color: "var(--foret)" }}>Google Agenda</strong> — sur
@@ -304,6 +323,12 @@ export default async function Reglages({
             Quiconque possède cette adresse voit votre agenda : ne la publiez pas.
             Google ne la relit que toutes les quelques heures ; sur iPhone, le délai
             se règle dans les réglages du calendrier.
+          </p>
+
+          <p style={{ marginTop: 12, fontSize: 13, lineHeight: 1.65, color: "var(--texte-gris)" }}>
+            Cette adresse reprend celle par laquelle vous êtes arrivée. Le jour où le
+            domaine sera branché, revenez ici : elle aura changé d&apos;elle-même, et
+            il faudra se réabonner.
           </p>
 
           <form action={regenererAgenda} style={{ marginTop: 16 }}>
