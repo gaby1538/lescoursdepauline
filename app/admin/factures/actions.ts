@@ -230,6 +230,16 @@ export async function emettreEtEnvoyer(formulaire: FormData): Promise<void> {
   const id = String(formulaire.get("id") ?? "");
   if (!id) retour();
 
+  // En cas de refus, on revient là où le numéro a été saisi.
+  const surErreur = (parametre: string): never => {
+    const demandee = String(formulaire.get("retour") ?? "");
+    if (/^\/admin\/factures\/[0-9a-f-]{36}\/modifier$/.test(demandee)) {
+      revalidatePath(demandee);
+      redirect(`${demandee}${parametre}`);
+    }
+    retour(parametre);
+  };
+
   const supabase = clientAdmin();
 
   const { count: nbLignes } = await supabase
@@ -237,15 +247,19 @@ export async function emettreEtEnvoyer(formulaire: FormData): Promise<void> {
     .select("id", { count: "exact", head: true })
     .eq("facture_id", id);
 
-  if ((nbLignes ?? 0) === 0) retour("?erreur=vide");
+  if ((nbLignes ?? 0) === 0) surErreur("?erreur=vide");
 
-  const { data: numero, error } = await supabase.rpc("attribuer_numero_facture", {
+  const choisi = String(formulaire.get("numero") ?? "").trim().slice(0, 40);
+
+  const { data: numero, error } = await supabase.rpc("emettre_facture", {
     facture: id,
+    numero_choisi: choisi || null,
   });
 
   if (error) {
     console.error("numérotation", error);
-    retour("?erreur=numero");
+    const doublon = /duplicate key|unique/i.test(error.message ?? "");
+    surErreur(doublon ? "?erreur=doublon" : "?erreur=numero");
   }
 
   const { data: facture } = await supabase

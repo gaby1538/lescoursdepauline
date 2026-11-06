@@ -27,7 +27,7 @@ export default async function ModifierFacture({
 
   if (!facture) notFound();
 
-  const [{ data: lignes }, { data: client }] = await Promise.all([
+  const [{ data: lignes }, { data: client }, { data: suggestion }] = await Promise.all([
     supabase
       .from("lignes_facture")
       .select("id, description, quantite, prix_unitaire_cents, total_cents")
@@ -38,6 +38,7 @@ export default async function ModifierFacture({
       .select("id, prenom, nom, email, eleve_prenom, eleve_classe")
       .eq("id", facture.dossier_id)
       .maybeSingle(),
+    supabase.rpc("numero_suggere"),
   ]);
 
   const brouillon = facture.statut === "brouillon";
@@ -69,6 +70,17 @@ export default async function ModifierFacture({
         )}
         {erreur === "vide" && (
           <p className="alerte">Une facture sans ligne ne peut pas être émise.</p>
+        )}
+        {erreur === "doublon" && (
+          <p className="alerte">
+            Ce numéro est déjà porté par une autre facture. Deux factures ne peuvent
+            pas partager un numéro.
+          </p>
+        )}
+        {erreur === "numero" && (
+          <p className="alerte">
+            L&apos;émission a échoué. Vérifiez le numéro saisi, puis réessayez.
+          </p>
         )}
 
         {!brouillon ? (
@@ -270,13 +282,39 @@ export default async function ModifierFacture({
         {brouillon && (
           <form action={emettreEtEnvoyer} className="carte" style={{ marginTop: 18 }}>
             <input type="hidden" name="id" value={id} />
+            <input
+              type="hidden"
+              name="retour"
+              value={`/admin/factures/${id}/modifier`}
+            />
             <p className="surtitre" style={{ marginBottom: 10 }}>
               Émettre
             </p>
             <p style={{ fontSize: 14.5, lineHeight: 1.65, color: "var(--texte-doux)" }}>
-              Attribue le numéro définitif et envoie la facture par email. Après cela,
+              Le numéro devient définitif et la facture part par email. Après cela,
               plus aucune modification n&apos;est possible.
             </p>
+
+            <div style={{ marginTop: 16, maxWidth: 240 }}>
+              <label htmlFor="numero" style={etiquette}>
+                Numéro de la facture
+              </label>
+              <input
+                id="numero"
+                name="numero"
+                type="text"
+                defaultValue={(suggestion as string | null) ?? ""}
+                style={{ ...saisie, fontVariantNumeric: "tabular-nums" }}
+              />
+            </div>
+            <p style={{ marginTop: 9, fontSize: 13, lineHeight: 1.65, color: "var(--texte-gris)" }}>
+              Proposé : <strong>{(suggestion as string | null) ?? "—"}</strong>, le
+              suivant dans la série. Vous pouvez le remplacer, mais la numérotation
+              doit rester continue et sans trou : c&apos;est une obligation
+              comptable, et un numéro déjà utilisé sera refusé. Si vous saisissez un
+              numéro plus avancé, la série reprendra à partir de celui-là.
+            </p>
+
             <button
               type="submit"
               className="bouton bouton--or bouton--compact"

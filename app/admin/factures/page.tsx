@@ -98,6 +98,12 @@ export default async function Factures({
         {erreur === "emise" && (
           <p className="alerte">Cette facture est déjà émise : elle ne se modifie plus.</p>
         )}
+        {erreur === "doublon" && (
+          <p className="alerte">Ce numéro est déjà porté par une autre facture.</p>
+        )}
+        {erreur === "numero" && (
+          <p className="alerte">L&apos;émission a échoué. Réessayez dans un instant.</p>
+        )}
         {ok === "rien" && (
           <p className="succes">
             Aucun cours à facturer sur ce mois : tout est déjà sur une facture.
