@@ -21,12 +21,55 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Réveil et rappels
+        env:
+          URL_SITE: ${{ secrets.URL_SITE }}
+          CLE_TACHES: ${{ secrets.CLE_TACHES }}
         run: |
-          code=$(curl -sS -o reponse.json -w "%{http_code}" \
+          if [ -z "$URL_SITE" ]; then
+            echo "❌ Le secret URL_SITE est vide ou absent du dépôt."
+            exit 1
+          fi
+          if [ -z "$CLE_TACHES" ]; then
+            echo "❌ Le secret CLE_TACHES est vide ou absent du dépôt."
+            exit 1
+          fi
+
+          # Une barre finale dans URL_SITE donnerait //api/taches.
+          base="${URL_SITE%/}"
+          echo "Appel de $base/api/taches"
+
+          code=$(curl -sS -o reponse.txt -w "%{http_code}" \
             --max-time 60 \
-            -H "x-cle-taches: ${{ secrets.CLE_TACHES }}" \
-            "${{ secrets.URL_SITE }}/api/taches")
-          echo "HTTP $code"
-          cat reponse.json
+            -H "x-cle-taches: $CLE_TACHES" \
+            "$base/api/taches" || echo "000")
+
+          echo "--- réponse du site ---"
+          cat reponse.txt || true
           echo
-          test "$code" = "200"
+          echo "-----------------------"
+
+          case "$code" in
+            200)
+              echo "✅ Tâches exécutées."
+              ;;
+            403)
+              echo "❌ 403 — la clé a été refusée. Deux causes possibles :"
+              echo "   • la variable CLE_TACHES n'existe pas encore dans Vercel,"
+              echo "     ou le site n'a pas été redéployé depuis son ajout ;"
+              echo "   • sa valeur diffère de celle du secret GitHub."
+              exit 1
+              ;;
+            404)
+              echo "❌ 404 — la route est introuvable à cette adresse."
+              echo "   Vérifiez URL_SITE, et que le dernier déploiement est passé."
+              exit 1
+              ;;
+            000)
+              echo "❌ Aucune réponse. URL_SITE est-elle correcte et joignable ?"
+              exit 1
+              ;;
+            *)
+              echo "❌ Réponse inattendue : HTTP $code"
+              exit 1
+              ;;
+          esac
