@@ -21,8 +21,21 @@ export async function GET(requete: NextRequest) {
     requete.nextUrl.searchParams.get("cle") ??
     "";
 
-  if (!attendu || fourni !== attendu) {
-    return new NextResponse("Accès refusé", { status: 403 });
+  // Deux refus distincts, parce qu'ils se corrigent différemment et que
+  // « accès refusé » ne disait pas lequel des deux.
+  if (!attendu) {
+    return new NextResponse(
+      "La variable CLE_TACHES n'existe pas sur ce déploiement. " +
+        "Ajoutez-la dans Vercel, puis redéployez.",
+      { status: 503 }
+    );
+  }
+
+  if (fourni !== attendu) {
+    return new NextResponse(
+      "Clé refusée : celle envoyée ne correspond pas à CLE_TACHES.",
+      { status: 403 }
+    );
   }
 
   const supabase = clientAdmin();

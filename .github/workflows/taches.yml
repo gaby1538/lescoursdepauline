@@ -53,10 +53,14 @@ jobs:
               echo "✅ Tâches exécutées."
               ;;
             403)
-              echo "❌ 403 — la clé a été refusée. Deux causes possibles :"
-              echo "   • la variable CLE_TACHES n'existe pas encore dans Vercel,"
-              echo "     ou le site n'a pas été redéployé depuis son ajout ;"
-              echo "   • sa valeur diffère de celle du secret GitHub."
+              echo "❌ 403 — la clé envoyée ne correspond pas à celle du site."
+              echo "   Recopiez la même valeur dans les deux, sans espace ni"
+              echo "   retour à la ligne, puis redéployez Vercel."
+              exit 1
+              ;;
+            503)
+              echo "❌ 503 — la variable CLE_TACHES manque côté Vercel,"
+              echo "   ou le site n'a pas été redéployé depuis son ajout."
               exit 1
               ;;
             404)
