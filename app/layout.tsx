@@ -19,7 +19,12 @@ const sans = Inter({
   display: "swap",
 });
 
+// Ceinture et bretelles : l'en-tête accompagne le robots.txt, car
+// certains robots ignorent l'un et respectent l'autre.
+const INDEXABLE = process.env.SITE_PUBLIC === "1";
+
 export const metadata: Metadata = {
+  robots: INDEXABLE ? undefined : { index: false, follow: false },
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com"
   ),
