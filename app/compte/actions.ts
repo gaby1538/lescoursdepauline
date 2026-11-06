@@ -16,6 +16,7 @@ import {
   bienvenueCompte,
   reinitialisationMotDePasse,
 } from "@/lib/emails";
+import { autoriserEnvoi, PLAFONDS } from "@/lib/limites";
 
 export type EtatFormulaire = {
   erreur: string | null;
@@ -59,6 +60,13 @@ export async function creerCompte(
   if (!classe) return { erreur: "Choisissez la classe de l'élève." };
 
   if (await adresseBloquee(email)) return envoye(email);
+
+  // Même réponse qu'en temps normal : annoncer le plafond apprendrait
+  // à qui le heurte que l'adresse existe.
+  const { plafond, fenetre } = PLAFONDS.compteParAdresse;
+  if (!(await autoriserEnvoi(`compte:${email}`, plafond, fenetre))) {
+    return envoye(email);
+  }
 
   const supabase = clientAdmin();
   const existant = await trouverDossierParEmail(email);
@@ -263,6 +271,11 @@ export async function demanderReinitialisation(
 ): Promise<EtatFormulaire> {
   const email = String(formulaire.get("email") ?? "").trim().toLowerCase();
   if (!EMAIL.test(email)) return { erreur: "Cette adresse email ne semble pas valide." };
+
+  const limite = PLAFONDS.lienParAdresse;
+  if (!(await autoriserEnvoi(`lien:${email}`, limite.plafond, limite.fenetre))) {
+    return envoye(email);
+  }
 
   const dossier = await trouverDossierParEmail(email);
 

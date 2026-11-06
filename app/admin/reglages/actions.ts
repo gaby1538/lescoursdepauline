@@ -33,6 +33,7 @@ export async function enregistrerReglages(formulaire: FormData): Promise<void> {
     max_email_non_confirme: entier(formulaire, "max_email_non_confirme", 1, 10),
     delai_paiement_jours: entier(formulaire, "delai_paiement_jours", 1, 180),
     delai_relance_jours: entier(formulaire, "delai_relance_jours", 1, 90),
+    rappel_minutes: entier(formulaire, "rappel_minutes", 5, 1440),
   };
 
   if (Object.values(champs).some((v) => v === null)) retour("?erreur=1");
@@ -41,6 +42,7 @@ export async function enregistrerReglages(formulaire: FormData): Promise<void> {
     .from("parametres")
     .update({
       ...champs,
+      rappel_actif: String(formulaire.get("rappel_actif") ?? "") === "1",
       reservations_suspendues: suspension,
       message_suspension:
         String(formulaire.get("message_suspension") ?? "").trim() ||

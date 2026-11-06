@@ -9,9 +9,14 @@ export type DossierBrut = {
   user_id: string | null;
   email_confirme_le: string | null;
   token_confirmation: string;
+  token_expire_le: string | null;
 };
 
-const COLONNES = "id, email, prenom, nom, user_id, email_confirme_le, token_confirmation";
+/** Un lien reçu par email cesse d'ouvrir l'espace au bout d'une semaine. */
+export const VALIDITE_JETON_JOURS = 7;
+
+const COLONNES =
+  "id, email, prenom, nom, user_id, email_confirme_le, token_confirmation, token_expire_le";
 
 /**
  * Retrouve un dossier à partir d'une adresse, en passant par la forme
@@ -51,7 +56,16 @@ export async function trouverDossierParJeton(
     .eq("anonymise", false)
     .maybeSingle();
 
-  return (data as DossierBrut | null) ?? null;
+  const dossier = (data as DossierBrut | null) ?? null;
+  if (!dossier) return null;
+
+  // Un vieux message transféré, ou une boîte compromise des mois plus
+  // tard, ne doit pas rouvrir l'espace.
+  if (dossier.token_expire_le && dossier.token_expire_le < new Date().toISOString()) {
+    return null;
+  }
+
+  return dossier;
 }
 
 /**
@@ -61,10 +75,15 @@ export async function trouverDossierParJeton(
  */
 export async function renouvelerJeton(dossierId: string): Promise<string> {
   const jeton = crypto.randomUUID();
+  const expiration = new Date(
+    Date.now() + VALIDITE_JETON_JOURS * 24 * 3600 * 1000
+  ).toISOString();
+
   await clientAdmin()
     .from("dossiers")
-    .update({ token_confirmation: jeton })
+    .update({ token_confirmation: jeton, token_expire_le: expiration })
     .eq("id", dossierId);
+
   return jeton;
 }
 

@@ -6,6 +6,7 @@ import {
   jourDuCreneau,
   blocLong,
   regrouperBlocs,
+  heure,
 } from "./dates";
 
 /**
@@ -335,6 +336,105 @@ export async function nouveauDocument(options: {
        <p style="${P}font-size:13px;color:#55604f;">Les documents restent disponibles
          dans votre espace, avec les précédents.</p>
        <p style="${P}">À bientôt,<br>Pauline</p>`
+    ),
+  });
+}
+
+export async function demandeAnnulation(options: {
+  prenomClient: string;
+  eleve: string;
+  debut: string;
+  motif: string | null;
+  horsDelai: boolean;
+  lien: string;
+}): Promise<ResultatEnvoi> {
+  return envoyer({
+    destinataire: IDENTITE.email,
+    sujet: `Demande d'annulation — ${creneauLong(options.debut)}`,
+    html: gabarit(
+      "Une annulation est demandée",
+      `<p style="${P}"><strong>${creneauLong(options.debut)}</strong><br>
+         ${options.prenomClient} — élève : ${options.eleve}</p>
+       ${
+         options.motif
+           ? `<p style="${P}">Motif indiqué :<br><em>${options.motif}</em></p>`
+           : `<p style="${P}">Aucun motif indiqué.</p>`
+       }
+       <p style="${P}">${
+         options.horsDelai
+           ? "<strong>Demande hors délai.</strong> Si vous l'acceptez, la séance sera comptée comme annulée tardivement, donc facturable."
+           : "Demande dans les délais. Acceptée, la séance ne sera pas facturée."
+       }</p>
+       ${bouton(options.lien, "Répondre à la demande")}
+       <p style="${P}font-size:13px;color:#55604f;">Le créneau reste réservé tant que
+         vous n'avez pas répondu.</p>`
+    ),
+  });
+}
+
+export async function reponseAnnulation(options: {
+  destinataire: string;
+  prenom: string;
+  debut: string;
+  acceptee: boolean;
+  facturable: boolean;
+  reponse: string | null;
+}): Promise<ResultatEnvoi> {
+  const quand = creneauLong(options.debut);
+
+  return envoyer({
+    destinataire: options.destinataire,
+    sujet: options.acceptee
+      ? `Annulation confirmée — ${quand}`
+      : `Votre cours est maintenu — ${quand}`,
+    html: gabarit(
+      options.acceptee ? "C'est annulé" : "Le cours est maintenu",
+      `<p style="${P}">Bonjour ${options.prenom},</p>
+       ${
+         options.acceptee
+           ? `<p style="${P}">Votre cours du <strong>${quand}</strong> est annulé.</p>
+              <p style="${P}">${
+                options.facturable
+                  ? "La demande étant arrivée à moins de 24 heures de la séance, celle-ci reste due et figurera sur votre facture."
+                  : "Rien ne vous sera facturé pour cette séance."
+              }</p>`
+           : `<p style="${P}">Je n'ai pas pu accepter l'annulation du cours du
+                <strong>${quand}</strong>. Il reste donc prévu.</p>`
+       }
+       ${
+         options.reponse
+           ? `<p style="${P}">Mon message :<br><em>${options.reponse}</em></p>`
+           : ""
+       }
+       <p style="${P}">À bientôt,<br>Pauline</p>`
+    ),
+  });
+}
+
+export async function rappelSeance(options: {
+  destinataire: string;
+  prenom: string;
+  eleve: string;
+  debut: string;
+  minutes: number;
+  lienVisio: string | null;
+}): Promise<ResultatEnvoi> {
+  return envoyer({
+    destinataire: options.destinataire,
+    sujet: `Cours de SVT dans ${options.minutes} minutes`,
+    html: gabarit(
+      "C'est bientôt",
+      `<p style="${P}">Bonjour ${options.prenom},</p>
+       <p style="${P}">Le cours de ${options.eleve} commence à
+         <strong>${heure(options.debut)}</strong>, dans ${options.minutes} minutes.</p>
+       ${
+         options.lienVisio
+           ? bouton(options.lienVisio, "Rejoindre le cours")
+           : `<p style="${P}">Je vous envoie le lien de connexion juste avant.</p>`
+       }
+       <p style="${P}font-size:13px;color:#55604f;">Pensez à avoir de quoi écrire et le
+         chapitre travaillé sous les yeux.</p>
+       <p style="${P}">À tout de suite,<br>Pauline</p>`
     ),
   });
 }

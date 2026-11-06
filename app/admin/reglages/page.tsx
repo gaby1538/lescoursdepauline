@@ -138,6 +138,36 @@ export default async function Reglages({
             </div>
           </div>
 
+          <h2 style={{ fontSize: 25, margin: "44px 0 8px" }}>Rappel avant la séance</h2>
+          <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
+            Un message envoyé à l&apos;élève peu avant le cours. Il part par tranches
+            de dix minutes, donc le délai réel peut dépasser le réglage de quelques
+            minutes.
+          </p>
+          <div className="carte" style={{ marginTop: 16 }}>
+            <label className="case-a-cocher" style={{ marginTop: 0 }}>
+              <input
+                type="checkbox"
+                name="rappel_actif"
+                value="1"
+                defaultChecked={p.rappel_actif ?? true}
+              />
+              <span>
+                Envoyer un rappel
+                <span className="case-a-cocher__aide">
+                  Décoché, aucun rappel ne part.
+                </span>
+              </span>
+            </label>
+            <div className="rangee-formulaire" style={{ marginTop: 16 }}>
+              <Nombre
+                nom="rappel_minutes"
+                libelle="Combien de minutes avant"
+                valeur={p.rappel_minutes ?? 30}
+              />
+            </div>
+          </div>
+
           <h2 style={{ fontSize: 25, margin: "44px 0 8px" }}>Facturation</h2>
           <div className="carte" style={{ marginTop: 16 }}>
             <div className="rangee-formulaire">

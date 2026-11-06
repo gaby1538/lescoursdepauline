@@ -1,0 +1,32 @@
+# Appelle /api/taches toutes les dix minutes : garde le projet Supabase
+# éveillé et envoie les rappels avant les séances.
+#
+# Deux secrets à créer dans le dépôt, Settings → Secrets and variables
+# → Actions :
+#   URL_SITE   — https://lescoursdepauline.com (sans barre finale)
+#   CLE_TACHES — la même valeur que la variable CLE_TACHES de Vercel
+#
+# GitHub suspend les tâches planifiées d'un dépôt resté soixante jours
+# sans activité. Un commit, même minime, les relance.
+
+name: Tâches régulières
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  appeler:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Réveil et rappels
+        run: |
+          code=$(curl -sS -o reponse.json -w "%{http_code}" \
+            --max-time 60 \
+            -H "x-cle-taches: ${{ secrets.CLE_TACHES }}" \
+            "${{ secrets.URL_SITE }}/api/taches")
+          echo "HTTP $code"
+          cat reponse.json
+          echo
+          test "$code" = "200"

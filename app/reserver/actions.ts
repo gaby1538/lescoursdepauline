@@ -6,7 +6,8 @@ import { dossierConnecte } from "@/lib/session";
 import { adresseBloquee, groupeDeLaClasse } from "@/lib/reservations";
 import { trouverDossierParEmail } from "@/lib/comptes";
 import { confirmationReservation, alerteNouvelleReservation } from "@/lib/emails";
-import { lienActivation } from "@/lib/comptes";
+import { lienActivation, VALIDITE_JETON_JOURS } from "@/lib/comptes";
+import { autoriserEnvoi, PLAFONDS } from "@/lib/limites";
 
 export type EtatReservation = { erreur: string | null };
 
@@ -108,9 +109,14 @@ export async function reserver(
         ? null
         : lienActivation(existant.token_confirmation);
     } else {
+      const expiration = new Date(
+        Date.now() + VALIDITE_JETON_JOURS * 24 * 3600 * 1000
+      ).toISOString();
+
       const { data: cree, error } = await supabase
         .from("dossiers")
         .insert({
+          token_expire_le: expiration,
           email: destinataire,
           prenom,
           nom,
@@ -162,9 +168,17 @@ export async function reserver(
     },
   });
 
+  const quota = PLAFONDS.reservationParAdresse;
+  const peutEcrire = await autoriserEnvoi(
+    `resa:${destinataire}`,
+    quota.plafond,
+    quota.fenetre
+  );
+
   // On journalise le sort de chaque email : un échec se diagnostique
   // ensuite depuis Supabase, sans fouiller les journaux de Vercel.
-  const [emailEleve, emailPauline] = await Promise.all([
+  const [emailEleve, emailPauline] = peutEcrire
+    ? await Promise.all([
     confirmationReservation({
       destinataire,
       prenom,
@@ -182,7 +196,11 @@ export async function reserver(
       sujet,
       premiere,
     }),
-  ]);
+      ])
+    : [
+        { ok: false, detail: "plafond_atteint" },
+        { ok: false, detail: "plafond_atteint" },
+      ];
 
   await supabase.from("journal").insert({
     acteur: "systeme",

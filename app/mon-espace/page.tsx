@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { dossierConnecte } from "@/lib/session";
 import { clientAdmin } from "@/lib/supabase";
 import { seDeconnecter } from "@/app/compte/actions";
+import DemandeAnnulation from "./DemandeAnnulation";
 import { creneauLong, moisLong } from "@/lib/dates";
 import { euros } from "@/lib/constantes";
 
@@ -17,6 +18,10 @@ type Ligne = {
   sujet: string | null;
   lien_visio: string | null;
   prix_cents: number;
+  annulation_demandee_le: string | null;
+  annulation_traitee_le: string | null;
+  annulation_decision: string | null;
+  annulation_reponse: string | null;
 };
 
 const LIBELLE_STATUT: Record<string, string> = {
@@ -47,7 +52,9 @@ export default async function MonEspace() {
   const [{ data }, { data: documents }, { data: factures }] = await Promise.all([
     supabase
       .from("reservations")
-      .select("id, debut, statut, sujet, lien_visio, prix_cents")
+      .select(
+        "id, debut, statut, sujet, lien_visio, prix_cents, annulation_demandee_le, annulation_traitee_le, annulation_decision, annulation_reponse"
+      )
       .eq("dossier_id", dossier.id)
       .order("debut", { ascending: false }),
     supabase
@@ -63,6 +70,13 @@ export default async function MonEspace() {
       .order("periode_debut", { ascending: false }),
   ]);
 
+  const { data: reglages } = await supabase
+    .from("parametres")
+    .select("delai_annulation_h")
+    .eq("id", true)
+    .maybeSingle();
+
+  const delaiAnnulation = reglages?.delai_annulation_h ?? 24;
   const toutes = (data ?? []) as Ligne[];
   const maintenant = new Date().toISOString();
   const aVenir = toutes
@@ -119,7 +133,7 @@ export default async function MonEspace() {
                   <p className="cours__quand">{creneauLong(r.debut)}</p>
                   {r.sujet ? <p className="cours__sujet">{r.sujet}</p> : null}
                 </div>
-                <div style={{ textAlign: "right" }}>
+                <div style={{ textAlign: "right", minWidth: 0 }}>
                   <span className="etiquette">{libelleStatut(r, maintenant)}</span>
                   {r.lien_visio ? (
                     <p style={{ marginTop: 8 }}>
@@ -127,6 +141,20 @@ export default async function MonEspace() {
                     </p>
                   ) : (
                     <p className="cours__note">Lien envoyé avant la séance</p>
+                  )}
+
+                  {r.annulation_demandee_le && !r.annulation_traitee_le ? (
+                    <p className="annulation__etat">
+                      Annulation demandée. Pauline vous répond par email.
+                    </p>
+                  ) : (
+                    <DemandeAnnulation
+                      id={r.id}
+                      dansLesDelais={
+                        Date.parse(r.debut) - Date.now() >
+                        delaiAnnulation * 3600 * 1000
+                      }
+                    />
                   )}
                 </div>
               </article>

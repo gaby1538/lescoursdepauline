@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exigerAdmin } from "@/lib/admin";
 import { clientAdmin } from "@/lib/supabase";
+import { reponseAnnulation } from "@/lib/emails";
 
 function retour(chemin: string, parametre?: string): never {
   revalidatePath(chemin);
@@ -199,4 +200,81 @@ export async function enregistrerFacturation(formulaire: FormData): Promise<void
     .eq("id", id);
 
   retour(`/admin/eleves/${id}`, "?ok=1");
+}
+
+/**
+ * Pauline tranche une demande d'annulation.
+ *
+ * Le classement dans ou hors délai se fait sur l'instant de la demande,
+ * jamais sur celui de la réponse : un élève qui prévient une semaine
+ * avant ne doit pas être facturé parce que la réponse a tardé. C'est le
+ * déclencheur en base qui s'en charge.
+ */
+export async function repondreAnnulation(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const id = String(formulaire.get("id") ?? "");
+  const dossierId = String(formulaire.get("dossier") ?? "");
+  const decision = String(formulaire.get("decision") ?? "");
+  const reponse = String(formulaire.get("reponse") ?? "").trim().slice(0, 500) || null;
+  const ou = destination(formulaire, "/admin");
+
+  if (!id || !["acceptee", "refusee"].includes(decision)) retour(ou, "?erreur=1");
+
+  const supabase = clientAdmin();
+
+  const { data: cours } = await supabase
+    .from("reservations")
+    .select("id, debut, statut, dossier_id")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!cours || cours.statut !== "reservee") retour(ou, "?erreur=1");
+
+  const maintenant = new Date().toISOString();
+
+  await supabase
+    .from("reservations")
+    .update({
+      ...(decision === "acceptee" ? { statut: "annulee_dans_delai" } : {}),
+      annulation_decision: decision,
+      annulation_reponse: reponse,
+      annulation_traitee_le: maintenant,
+    })
+    .eq("id", id);
+
+  // On relit : le déclencheur a peut-être requalifié en hors délai.
+  const { data: apres } = await supabase
+    .from("reservations")
+    .select("statut")
+    .eq("id", id)
+    .maybeSingle();
+
+  const { data: dossier } = await supabase
+    .from("dossiers")
+    .select("email, prenom")
+    .eq("id", cours.dossier_id)
+    .maybeSingle();
+
+  if (dossier) {
+    const resultat = await reponseAnnulation({
+      destinataire: dossier.email,
+      prenom: dossier.prenom ?? "",
+      debut: cours.debut,
+      acceptee: decision === "acceptee",
+      facturable: apres?.statut === "annulee_hors_delai",
+      reponse,
+    });
+
+    await supabase.from("journal").insert({
+      acteur: "pauline",
+      dossier_id: cours.dossier_id,
+      objet: "reservation",
+      objet_id: id,
+      action: `annulation_${decision}`,
+      details: { statut: apres?.statut, email: resultat.detail },
+    });
+  }
+
+  retour(ou, "?ok=1");
 }

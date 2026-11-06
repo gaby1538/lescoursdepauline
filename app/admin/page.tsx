@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { clientAdmin } from "@/lib/supabase";
 import { creneauLong } from "@/lib/dates";
-import { marquerEffectue, annulerCours } from "./eleves/actions";
+import { marquerEffectue, annulerCours, repondreAnnulation } from "./eleves/actions";
 import { euros } from "@/lib/constantes";
+import { etiquette, saisie } from "@/components/Champs";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +24,17 @@ export default async function TableauDeBord() {
   const maintenant = new Date().toISOString();
   const debutMois = `${new Date().toISOString().slice(0, 7)}-01`;
 
-  const [prochains, aValider, eleves, aVenir, duMois, impayees, parametres] =
+  const [demandes, prochains, aValider, eleves, aVenir, duMois, impayees, parametres] =
     await Promise.all([
+    supabase
+      .from("reservations")
+      .select(
+        "id, dossier_id, debut, annulation_demandee_le, annulation_motif, dossiers (prenom, nom, eleve_prenom, eleve_classe)"
+      )
+      .eq("statut", "reservee")
+      .not("annulation_demandee_le", "is", null)
+      .is("annulation_traitee_le", null)
+      .order("debut"),
     supabase
       .from("reservations")
       .select("id, debut, sujet, dossiers (prenom, nom, eleve_prenom, eleve_classe)")
@@ -62,7 +72,7 @@ export default async function TableauDeBord() {
       .in("statut", ["envoyee", "en_retard"]),
     supabase
       .from("parametres")
-      .select("reservations_suspendues")
+      .select("reservations_suspendues, delai_annulation_h")
       .eq("id", true)
       .maybeSingle(),
   ]);
@@ -71,6 +81,12 @@ export default async function TableauDeBord() {
   const enAttente = (aValider.data ?? []) as unknown as (Prochain & {
     dossier_id: string;
   })[];
+  const aTrancher = (demandes.data ?? []) as unknown as (Prochain & {
+    dossier_id: string;
+    annulation_demandee_le: string;
+    annulation_motif: string | null;
+  })[];
+  const delaiAnnulation = parametres.data?.delai_annulation_h ?? 24;
   const heuresDuMois = duMois.data?.length ?? 0;
   const recetteDuMois = (duMois.data ?? []).reduce(
     (somme, r) => somme + (r.prix_cents ?? 0),
@@ -116,6 +132,108 @@ export default async function TableauDeBord() {
             libelle={duImpaye > 0 ? `dont ${euros(duImpaye)} en attente` : "facturable ce mois"}
           />
         </div>
+
+        {aTrancher.length > 0 && (
+          <>
+            <h2 style={{ fontSize: 25, margin: "46px 0 8px" }}>
+              Demandes d&apos;annulation
+              <span className="pastille-compte">{aTrancher.length}</span>
+            </h2>
+            <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
+              Le créneau reste réservé tant que vous n&apos;avez pas répondu. Le délai
+              se juge au moment de la demande, pas de votre réponse.
+            </p>
+
+            <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
+              {aTrancher.map((r) => {
+                const horsDelai =
+                  Date.parse(r.debut) - Date.parse(r.annulation_demandee_le) <
+                  delaiAnnulation * 3600 * 1000;
+                return (
+                  <div key={r.id} className="carte">
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 12,
+                        alignItems: "baseline",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontFamily: "var(--serif)",
+                          fontSize: 19,
+                          color: "var(--foret)",
+                        }}
+                      >
+                        {creneauLong(r.debut)}
+                      </p>
+                      <span className="etiquette">
+                        {horsDelai ? "Hors délai — resterait facturable" : "Dans les délais"}
+                      </span>
+                    </div>
+
+                    <p style={{ marginTop: 8, fontSize: 14.5, color: "var(--texte-doux)" }}>
+                      {r.dossiers?.eleve_prenom ?? "—"}
+                      {r.dossiers?.eleve_classe ? ` · ${r.dossiers.eleve_classe}` : ""} —
+                      demandé par {r.dossiers?.prenom} {r.dossiers?.nom}
+                    </p>
+
+                    {r.annulation_motif ? (
+                      <p
+                        style={{
+                          marginTop: 10,
+                          padding: "10px 14px",
+                          borderLeft: "2px solid var(--or-clair)",
+                          fontSize: 14.5,
+                          lineHeight: 1.6,
+                          color: "var(--texte-doux)",
+                        }}
+                      >
+                        {r.annulation_motif}
+                      </p>
+                    ) : null}
+
+                    <form action={repondreAnnulation} style={{ marginTop: 14 }}>
+                      <input type="hidden" name="id" value={r.id} />
+                      <input type="hidden" name="dossier" value={r.dossier_id} />
+                      <input type="hidden" name="retour" value="/admin" />
+                      <label htmlFor={`rep-${r.id}`} style={etiquette}>
+                        Votre réponse (facultative, transmise à l&apos;élève)
+                      </label>
+                      <input
+                        id={`rep-${r.id}`}
+                        name="reponse"
+                        type="text"
+                        placeholder="Pas de souci, on se rattrape la semaine prochaine."
+                        style={saisie}
+                      />
+                      <div className="actions-ligne" style={{ justifyContent: "flex-start", marginTop: 14 }}>
+                        <button
+                          type="submit"
+                          name="decision"
+                          value="acceptee"
+                          className="bouton bouton--principal bouton--compact"
+                        >
+                          Accepter
+                        </button>
+                        <button
+                          type="submit"
+                          name="decision"
+                          value="refusee"
+                          className="bouton bouton--secondaire bouton--compact"
+                        >
+                          Refuser
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         <h2 style={{ fontSize: 25, margin: "46px 0 8px" }}>
           Cours à valider

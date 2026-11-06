@@ -964,3 +964,47 @@ table.liste .droite { text-align: right; }
   color: var(--texte-doux);
   white-space: pre-line;
 }
+
+.annulation { margin-top: 10px; text-align: left; }
+.annulation > summary {
+  display: inline-block;
+  font-size: 13.5px;
+  color: var(--or-texte);
+  text-decoration: underline;
+  cursor: pointer;
+  list-style: none;
+}
+.annulation > summary::-webkit-details-marker { display: none; }
+.annulation > summary:hover { color: #6b4708; }
+
+.annulation__corps {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--bordure);
+  border-radius: 4px;
+  background: var(--creme-fonce);
+  max-width: 380px;
+}
+
+.annulation__avis {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--texte-doux);
+  margin-bottom: 12px;
+}
+
+.annulation__etiquette {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foret);
+  margin-bottom: 6px;
+}
+
+.annulation__etat {
+  margin-top: 10px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--or-texte);
+  text-align: left;
+}
