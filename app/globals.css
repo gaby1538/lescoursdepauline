@@ -981,17 +981,49 @@ table.liste .droite { text-align: right; }
   white-space: pre-line;
 }
 
-.annulation { margin-top: 10px; text-align: left; }
-.annulation > summary {
+/* Modifier et Annuler sont deux actions de même rang : même forme,
+   même couleur, côte à côte. L'une est un lien, l'autre ouvre un
+   volet, mais rien ne doit le laisser voir. */
+.cours__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.action-cours {
   display: inline-block;
-  font-size: 13.5px;
+  padding: 6px 14px;
+  border: 1px solid var(--bordure);
+  border-radius: 999px;
+  background: var(--carte);
+  font-size: 13px;
+  line-height: 1.4;
   color: var(--or-texte);
-  text-decoration: underline;
+  text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
   list-style: none;
+  transition: border-color 0.12s, background 0.12s;
 }
-.annulation > summary::-webkit-details-marker { display: none; }
-.annulation > summary:hover { color: #6b4708; }
+.action-cours::-webkit-details-marker { display: none; }
+.action-cours:hover {
+  border-color: var(--or-clair);
+  background: #fdf6e4;
+  color: #6b4708;
+}
+.action-cours[aria-expanded="true"] {
+  border-color: var(--or-clair);
+  background: #fdf6e4;
+}
+
+/* Le volet et le message passent à la ligne sous les deux boutons,
+   sans les séparer. */
+.annulation__corps,
+.annulation__etat {
+  flex: 1 1 100%;
+}
 
 .annulation__corps {
   margin-top: 12px;
@@ -999,7 +1031,8 @@ table.liste .droite { text-align: right; }
   border: 1px solid var(--bordure);
   border-radius: 4px;
   background: var(--creme-fonce);
-  max-width: 380px;
+  max-width: 100%;
+  text-align: left;
 }
 
 .annulation__avis {
@@ -1024,6 +1057,22 @@ table.liste .droite { text-align: right; }
   color: var(--or-texte);
   text-align: left;
 }
+
+/* Une phrase ne se lit pas alignée à droite dans une colonne étroite :
+   elle prend sa propre rangée, sous les deux colonnes de la carte. */
+.cours__etat {
+  flex: 1 1 100%;
+  margin-top: 4px;
+  padding: 11px 14px;
+  border-radius: 5px;
+  background: #fdf6e4;
+  box-shadow: inset 3px 0 0 var(--or-clair);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--or-texte);
+  text-align: left;
+}
+.cours__etat strong { color: var(--foret); }
 
 .agenda__lien {
   padding: 12px 14px;
@@ -1265,15 +1314,6 @@ table.liste .droite { text-align: right; }
 @media (max-width: 560px) {
   .duo { grid-template-columns: 1fr; }
 }
-
-/* Un lien d'action discret, à côté d'un volet repliable. */
-.lien-action {
-  font-size: 13.5px;
-  color: var(--texte-gris);
-  text-decoration: none;
-  border-bottom: 1px solid var(--bordure);
-}
-.lien-action:hover { color: var(--or-texte); border-color: var(--or-clair); }
 
 /* Avant et après, côte à côte, pour une demande de déplacement. */
 .deplacement {

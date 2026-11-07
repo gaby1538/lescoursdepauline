@@ -219,10 +219,34 @@ export default async function MonEspace({
                     <p className="cours__note">Lien envoyé avant la séance</p>
                   )}
 
-                  {r.annulation_demandee_le && !r.annulation_traitee_le ? (
-                    r.demande_type === "modification" ? (
-                      <p className="annulation__etat">
-                        Changement demandé
+                  {r.annulation_demandee_le && !r.annulation_traitee_le ? null : (
+                    <div className="cours__actions">
+                      {r.validee_le && (
+                        <Link
+                          href={`/reserver?deplacer=${bloc.ids.join(",")}`}
+                          className="action-cours"
+                        >
+                          Modifier
+                        </Link>
+                      )}
+                      <DemandeAnnulation
+                        ids={bloc.ids}
+                        heures={bloc.heures}
+                        enAttente={!r.validee_le}
+                        dansLesDelais={
+                          Date.parse(r.debut) - Date.now() >
+                          delaiAnnulation * 3600 * 1000
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {r.annulation_demandee_le && !r.annulation_traitee_le ? (
+                  <p className="cours__etat">
+                    {r.demande_type === "modification" ? (
+                      <>
+                        <strong>Changement demandé</strong>
                         {propositions.get(r.id)?.length
                           ? ` pour le ${blocLong({
                               debut: propositions.get(r.id)![0].debut,
@@ -234,36 +258,15 @@ export default async function MonEspace({
                           : ""}
                         . Pauline vous répond par email, et ce cours reste prévu
                         jusque-là.
-                      </p>
+                      </>
                     ) : (
-                      <p className="annulation__etat">
-                        Annulation demandée. Pauline vous répond par email.
-                      </p>
-                    )
-                  ) : (
-                    <>
-                      {r.validee_le && (
-                        <p style={{ marginTop: 10 }}>
-                          <Link
-                            href={`/reserver?deplacer=${bloc.ids.join(",")}`}
-                            className="lien-action"
-                          >
-                            Modifier — date, heure ou durée
-                          </Link>
-                        </p>
-                      )}
-                      <DemandeAnnulation
-                        ids={bloc.ids}
-                        heures={bloc.heures}
-                        enAttente={!r.validee_le}
-                        dansLesDelais={
-                          Date.parse(r.debut) - Date.now() >
-                          delaiAnnulation * 3600 * 1000
-                        }
-                      />
-                    </>
-                  )}
-                </div>
+                      <>
+                        <strong>Annulation demandée.</strong> Pauline vous répond par
+                        email, et le cours reste prévu jusque-là.
+                      </>
+                    )}
+                  </p>
+                ) : null}
               </article>
               );
             })

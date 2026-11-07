@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { demanderAnnulation, type EtatAnnulation } from "./actions";
 import { saisie } from "@/components/Champs";
 
@@ -20,6 +20,10 @@ export default function DemandeAnnulation({
   enAttente?: boolean;
 }) {
   const [etat, action, enCours] = useActionState(demanderAnnulation, initial);
+  // Un <details> aurait suffi, mais son volet et son bouton ne font
+  // qu'un seul élément : ouvert, il poussait « Modifier » à la ligne.
+  // Ici le volet est un frère du bouton, et la rangée reste intacte.
+  const [ouvert, setOuvert] = useState(false);
 
   if (etat.ok) {
     return (
@@ -34,10 +38,17 @@ export default function DemandeAnnulation({
   const plusieurs = heures > 1;
 
   return (
-    <details className="annulation">
-      <summary>
-        {enAttente ? "Retirer ma demande" : "Annuler ce cours"}
-      </summary>
+    <>
+      <button
+        type="button"
+        className="action-cours"
+        aria-expanded={ouvert}
+        onClick={() => setOuvert((o) => !o)}
+      >
+        {enAttente ? "Retirer" : "Annuler"}
+      </button>
+
+      {ouvert && (
       <form action={action} className="annulation__corps">
         <input type="hidden" name="ids" value={ids.join(",")} />
 
@@ -83,6 +94,7 @@ export default function DemandeAnnulation({
               : "Demander l'annulation"}
         </button>
       </form>
-    </details>
+      )}
+    </>
   );
 }
