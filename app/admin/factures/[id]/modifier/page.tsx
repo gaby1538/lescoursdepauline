@@ -61,7 +61,14 @@ export default async function ModifierFacture({
           </Link>
         </p>
 
-        {ok && <p className="succes">Enregistré.</p>}
+        {ok === "nouvelle" ? (
+          <p className="succes">
+            Facture créée, encore vide. Ajoutez vos lignes ci-dessous, puis
+            émettez-la.
+          </p>
+        ) : ok ? (
+          <p className="succes">Enregistré.</p>
+        ) : null}
         {erreur === "emise" && (
           <p className="alerte">
             Cette facture est émise : ses lignes ne se modifient plus. Pour corriger,

@@ -357,3 +357,99 @@ export async function supprimerBrouillon(formulaire: FormData): Promise<void> {
 
   retour("?ok=supprimee");
 }
+
+/**
+ * Une facture partie de rien, pour un client qui n'a rien réservé sur
+ * le site.
+ *
+ * Le carnet de clients, c'est la table des dossiers : un client créé
+ * ici y reste, avec son nom de facturation et son adresse, et la
+ * facture suivante les reprend sans rien ressaisir. La facture naît
+ * vide ; les lignes s'ajoutent sur l'écran de modification, qui sait
+ * déjà le faire.
+ */
+export async function creerFactureManuelle(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const supabase = clientAdmin();
+  let dossierId = String(formulaire.get("dossier_id") ?? "").trim();
+
+  if (!dossierId) {
+    const email = String(formulaire.get("email") ?? "").trim().toLowerCase();
+    if (!email || !email.includes("@")) retour("?erreur=client");
+
+    // Même adresse, même client : on ne crée pas un second dossier qui
+    // couperait l'historique en deux.
+    const { data: connu } = await supabase
+      .from("dossiers")
+      .select("id")
+      .eq("email_normalise", email)
+      .maybeSingle();
+
+    if (connu) {
+      dossierId = connu.id;
+    } else {
+      const { data: cree, error } = await supabase
+        .from("dossiers")
+        .insert({
+          email,
+          prenom: String(formulaire.get("prenom") ?? "").trim() || null,
+          nom: String(formulaire.get("nom") ?? "").trim() || null,
+          eleve_prenom: String(formulaire.get("eleve_prenom") ?? "").trim() || null,
+          facturation_nom:
+            String(formulaire.get("facturation_nom") ?? "").trim() || null,
+          facturation_adresse:
+            String(formulaire.get("facturation_adresse") ?? "").trim() || null,
+        })
+        .select("id")
+        .single();
+
+      if (error || !cree) {
+        console.error("création client", error);
+        retour("?erreur=client");
+      }
+      dossierId = cree.id;
+    }
+  }
+
+  const { data: client } = await supabase
+    .from("dossiers")
+    .select("prenom, nom, facturation_nom, facturation_adresse, facturation_note")
+    .eq("id", dossierId)
+    .maybeSingle();
+
+  // La période par défaut est le mois courant : elle n'a pas de sens
+  // pour une prestation ponctuelle, mais la facture en exige une, et
+  // elle reste modifiable.
+  const aujourdhui = new Date();
+  const debut = `${aujourdhui.getFullYear()}-${String(
+    aujourdhui.getMonth() + 1
+  ).padStart(2, "0")}-01`;
+  const suivant = new Date(`${debut}T00:00:00Z`);
+  suivant.setUTCMonth(suivant.getUTCMonth() + 1);
+
+  const { data: facture, error } = await supabase
+    .from("factures")
+    .insert({
+      dossier_id: dossierId,
+      periode_debut: debut,
+      periode_fin: suivant.toISOString().slice(0, 10),
+      total_cents: 0,
+      destinataire_nom:
+        client?.facturation_nom ??
+        `${client?.prenom ?? ""} ${client?.nom ?? ""}`.trim() ??
+        null,
+      destinataire_adresse: client?.facturation_adresse ?? null,
+      note: client?.facturation_note ?? null,
+    })
+    .select("id")
+    .single();
+
+  if (error || !facture) {
+    console.error("facture manuelle", error);
+    retour("?erreur=creation");
+  }
+
+  revalidatePath("/admin/factures");
+  redirect(`/admin/factures/${facture.id}/modifier?ok=nouvelle`);
+}
