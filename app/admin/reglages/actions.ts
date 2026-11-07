@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exigerAdmin } from "@/lib/admin";
 import { clientAdmin } from "@/lib/supabase";
+import { envoyerSauvegarde } from "@/lib/sauvegarde";
 
 function retour(parametre?: string): never {
   revalidatePath("/admin/reglages");
@@ -44,6 +45,9 @@ export async function enregistrerReglages(formulaire: FormData): Promise<void> {
       ...champs,
       rappel_actif: String(formulaire.get("rappel_actif") ?? "") === "1",
       recap_actif: String(formulaire.get("recap_actif") ?? "") === "1",
+      sauvegarde_active: String(formulaire.get("sauvegarde_active") ?? "") === "1",
+      sauvegarde_email:
+        String(formulaire.get("sauvegarde_email") ?? "").trim() || null,
       reservations_suspendues: suspension,
       message_suspension:
         String(formulaire.get("message_suspension") ?? "").trim() ||
@@ -75,6 +79,26 @@ export async function regenererAgenda(): Promise<void> {
     .eq("id", true);
 
   retour("?ok=agenda");
+}
+
+/**
+ * Envoi immédiat, sans attendre le 1er du mois. Sert surtout à vérifier
+ * que l'email arrive bien, et à prendre une copie avant une manipulation
+ * risquée.
+ */
+export async function envoyerSauvegardeMaintenant(): Promise<void> {
+  await exigerAdmin();
+
+  const { data: reglages } = await clientAdmin()
+    .from("parametres")
+    .select("sauvegarde_active, sauvegarde_email, sauvegarde_envoyee_le, email_contact")
+    .eq("id", true)
+    .maybeSingle();
+
+  if (!reglages?.sauvegarde_active) retour("?erreur=sauvegarde-eteinte");
+
+  const resultat = await envoyerSauvegarde(reglages, true);
+  retour(resultat === "envoyée" ? "?ok=sauvegarde" : "?erreur=sauvegarde");
 }
 
 export async function enregistrerTarif(formulaire: FormData): Promise<void> {

@@ -21,11 +21,14 @@ const API = "https://api.resend.com/emails";
 
 export type ResultatEnvoi = { ok: boolean; detail: string };
 
+export type PieceJointe = { nom: string; contenu: string };
+
 async function envoyer(options: {
   destinataire: string;
   sujet: string;
   html: string;
   repondreA?: string;
+  pieces?: PieceJointe[];
 }): Promise<ResultatEnvoi> {
   const cle = process.env.RESEND_API_KEY;
   const expediteur =
@@ -50,6 +53,14 @@ async function envoyer(options: {
         subject: options.sujet,
         html: options.html,
         reply_to: options.repondreA ?? IDENTITE.email,
+        ...(options.pieces && options.pieces.length > 0
+          ? {
+              attachments: options.pieces.map((p) => ({
+                filename: p.nom,
+                content: Buffer.from(p.contenu, "utf8").toString("base64"),
+              })),
+            }
+          : {}),
       }),
     });
 
@@ -516,6 +527,37 @@ export async function recapitulatifHebdomadaire(options: {
                 tourne et les emails partent.</p>`
            : bouton(options.lien, "Ouvrir l'administration")
        }`
+    ),
+  });
+}
+
+export async function sauvegardeMensuelle(options: {
+  destinataire: string;
+  annee: string;
+  pieces: PieceJointe[];
+  factures: number;
+  dossiers: number;
+}): Promise<ResultatEnvoi> {
+  return envoyer({
+    destinataire: options.destinataire,
+    sujet: `Sauvegarde du ${new Date().toLocaleDateString("fr-FR")} — Les cours de Pauline`,
+    pieces: options.pieces,
+    html: gabarit(
+      "Votre sauvegarde",
+      `<p style="${P}">Deux fichiers sont joints à ce message.</p>
+       <p style="${P}"><strong>Le livre des recettes ${options.annee}</strong> —
+         ${options.factures} facture${options.factures > 1 ? "s" : ""} émise${
+           options.factures > 1 ? "s" : ""
+         }, avec les dates d'encaissement et les modes de règlement. Il s'ouvre dans
+         un tableur. C'est la pièce à conserver dix ans, et à transmettre si on vous
+         la demande.</p>
+       <p style="${P}"><strong>Une copie des données</strong> — ${options.dossiers}
+         dossier${options.dossiers > 1 ? "s" : ""} élève, les cours et les factures.
+         Elle ne se lit pas à l'œil nu, mais elle permettrait de tout reconstituer si
+         la base venait à disparaître.</p>
+       <p style="${P}font-size:13px;color:#55604f;">Gardez ce message : tant qu'il
+         reste dans votre boîte, vos pièces comptables existent ailleurs que sur le
+         site. Le prochain partira le mois prochain.</p>`
     ),
   });
 }

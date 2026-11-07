@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { clientAdmin } from "@/lib/supabase";
 import { rappelSeance, recapitulatifHebdomadaire } from "@/lib/emails";
+import { envoyerSauvegarde } from "@/lib/sauvegarde";
 import { jourDuCreneau } from "@/lib/dates";
 import { euros } from "@/lib/constantes";
 
@@ -59,13 +60,16 @@ export async function GET(requete: NextRequest) {
   const { data: reglages } = await supabase
     .from("parametres")
     .select(
-      "rappel_actif, rappel_minutes, recap_actif, recap_envoye_le, email_contact"
+      "rappel_actif, rappel_minutes, recap_actif, recap_envoye_le, email_contact, sauvegarde_active, sauvegarde_email, sauvegarde_envoyee_le"
     )
     .eq("id", true)
     .maybeSingle();
 
   // --- 3. Récapitulatif du lundi ------------------------------------
   journal.recap = await envoyerRecapitulatif(reglages);
+
+  // --- 4. Sauvegarde du premier du mois -----------------------------
+  journal.sauvegarde = await envoyerSauvegarde(reglages);
 
   if (!reglages?.rappel_actif) {
     journal.rappels = "désactivés";

@@ -2,7 +2,13 @@ import { headers } from "next/headers";
 import { clientAdmin } from "@/lib/supabase";
 import { etiquette, saisie } from "@/components/Champs";
 import { euros, GROUPES } from "@/lib/constantes";
-import { enregistrerReglages, enregistrerTarif, regenererAgenda } from "./actions";
+import { jourLong } from "@/lib/dates";
+import {
+  enregistrerReglages,
+  enregistrerTarif,
+  envoyerSauvegardeMaintenant,
+  regenererAgenda,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -62,10 +68,25 @@ export default async function Reglages({
           <p className="succes">
             Nouvelle adresse d&apos;agenda. Réabonnez-vous avec celle ci-dessous.
           </p>
+        ) : ok === "sauvegarde" ? (
+          <p className="succes">
+            Sauvegarde envoyée. Regardez votre boîte : deux fichiers joints.
+          </p>
         ) : ok ? (
           <p className="succes">Enregistré.</p>
         ) : null}
-        {erreur && <p className="alerte">Une valeur saisie n&apos;est pas valide.</p>}
+        {erreur === "sauvegarde-eteinte" ? (
+          <p className="alerte">
+            La sauvegarde est décochée. Activez-la et enregistrez d&apos;abord.
+          </p>
+        ) : erreur === "sauvegarde" ? (
+          <p className="alerte">
+            L&apos;envoi a échoué. Le détail est dans le journal ; vérifiez
+            l&apos;adresse de destination.
+          </p>
+        ) : erreur ? (
+          <p className="alerte">Une valeur saisie n&apos;est pas valide.</p>
+        ) : null}
 
         <form action={enregistrerReglages}>
           <h2 style={{ fontSize: 25, margin: "40px 0 8px" }}>Coupe-circuit</h2>
@@ -185,6 +206,49 @@ export default async function Reglages({
             </label>
           </div>
 
+          <h2 style={{ fontSize: 25, margin: "44px 0 8px" }}>
+            Sauvegarde mensuelle
+          </h2>
+          <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
+            Le premier passage de chaque mois, le site vous envoie deux fichiers :
+            le livre des recettes de l&apos;année au format tableur, et une copie
+            de toutes les données du site. Gardez ces emails : si la base devenait
+            inaccessible, c&apos;est avec eux que tout se reconstruit.
+          </p>
+          <div className="carte" style={{ marginTop: 16 }}>
+            <label className="case-a-cocher" style={{ marginTop: 0 }}>
+              <input
+                type="checkbox"
+                name="sauvegarde_active"
+                value="1"
+                defaultChecked={p.sauvegarde_active ?? true}
+              />
+              <span>
+                Recevoir la sauvegarde
+                <span className="case-a-cocher__aide">
+                  Décochée, aucune copie ne sort du site.
+                </span>
+              </span>
+            </label>
+            <div style={{ marginTop: 16 }}>
+              <label htmlFor="sauvegarde_email" style={etiquette}>
+                Adresse de destination
+              </label>
+              <input
+                id="sauvegarde_email"
+                name="sauvegarde_email"
+                type="email"
+                style={saisie}
+                defaultValue={p.sauvegarde_email ?? ""}
+                placeholder={p.email_contact}
+              />
+              <p style={{ marginTop: 8, fontSize: 13, color: "var(--texte-gris)" }}>
+                Vide, la sauvegarde part à {p.email_contact}. Une adresse Gmail
+                convient : les pièces jointes y restent, et Google les conserve.
+              </p>
+            </div>
+          </div>
+
           <h2 style={{ fontSize: 25, margin: "44px 0 8px" }}>Rappel avant la séance</h2>
           <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
             Un message envoyé à l&apos;élève peu avant le cours. Il part par tranches
@@ -291,6 +355,30 @@ export default async function Reglages({
             Enregistrer les réglages
           </button>
         </form>
+
+        <div className="carte" style={{ marginTop: 20 }}>
+          <p style={etiquette}>Envoyer une sauvegarde maintenant</p>
+          <p
+            style={{
+              margin: "8px 0 14px",
+              fontSize: 14,
+              lineHeight: 1.7,
+              color: "var(--texte-doux)",
+            }}
+          >
+            Sans attendre le mois prochain. À faire une fois tout de suite, pour
+            vérifier que l&apos;email arrive, puis avant toute manipulation
+            délicate.
+            {p.sauvegarde_envoyee_le
+              ? ` Dernier envoi automatique : ${jourLong(p.sauvegarde_envoyee_le)}.`
+              : " Aucun envoi pour l'instant."}
+          </p>
+          <form action={envoyerSauvegardeMaintenant}>
+            <button type="submit" className="bouton bouton--secondaire bouton--compact">
+              Envoyer maintenant
+            </button>
+          </form>
+        </div>
 
         <h2 style={{ fontSize: 25, margin: "56px 0 8px" }}>Votre agenda</h2>
         <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
