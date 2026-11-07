@@ -28,6 +28,11 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com"
   ),
+  // Le site répond aussi sur www. Sans cette balise, Google verrait deux
+  // sites identiques et partagerait le classement entre les deux. Elle
+  // désigne l'adresse sans www comme la seule qui compte, quelle que
+  // soit celle par laquelle le visiteur est arrivé.
+  alternates: { canonical: "./" },
   title: {
     default: "Les cours de Pauline — cours particuliers de SVT en visio",
     template: "%s — Les cours de Pauline",
