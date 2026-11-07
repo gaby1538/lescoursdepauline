@@ -86,16 +86,38 @@ export async function regenererAgenda(): Promise<void> {
  * que l'email arrive bien, et à prendre une copie avant une manipulation
  * risquée.
  */
-export async function envoyerSauvegardeMaintenant(): Promise<void> {
+export async function envoyerSauvegardeMaintenant(
+  formulaire: FormData
+): Promise<void> {
   await exigerAdmin();
 
-  const { data: reglages } = await clientAdmin()
+  // Le bouton vit dans le formulaire des réglages : il enregistre donc
+  // d'abord ce que Pauline vient de taper, sinon l'essai partirait à
+  // l'ancienne adresse et dirait le contraire de ce qu'elle voit.
+  const active = String(formulaire.get("sauvegarde_active") ?? "") === "1";
+  const adresse = String(formulaire.get("sauvegarde_email") ?? "").trim() || null;
+
+  const supabase = clientAdmin();
+
+  const { error } = await supabase
     .from("parametres")
-    .select("sauvegarde_active, sauvegarde_email, sauvegarde_envoyee_le, email_contact")
+    .update({ sauvegarde_active: active, sauvegarde_email: adresse })
+    .eq("id", true);
+
+  if (error) {
+    console.error("réglages de sauvegarde", error);
+    retour("?erreur=sauvegarde");
+  }
+
+  if (!active) retour("?erreur=sauvegarde-eteinte");
+
+  const { data: reglages } = await supabase
+    .from("parametres")
+    .select(
+      "sauvegarde_active, sauvegarde_email, sauvegarde_envoyee_le, email_contact"
+    )
     .eq("id", true)
     .maybeSingle();
-
-  if (!reglages?.sauvegarde_active) retour("?erreur=sauvegarde-eteinte");
 
   const resultat = await envoyerSauvegarde(reglages, true);
   retour(resultat === "envoyée" ? "?ok=sauvegarde" : "?erreur=sauvegarde");

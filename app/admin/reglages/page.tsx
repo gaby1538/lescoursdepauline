@@ -247,6 +247,38 @@ export default async function Reglages({
                 convient : les pièces jointes y restent, et Google les conserve.
               </p>
             </div>
+
+            <div
+              style={{
+                marginTop: 18,
+                paddingTop: 16,
+                borderTop: "1px solid var(--bordure-douce)",
+              }}
+            >
+              <button
+                type="submit"
+                formAction={envoyerSauvegardeMaintenant}
+                className="bouton bouton--secondaire bouton--compact"
+              >
+                Envoyer une sauvegarde maintenant
+              </button>
+              <p
+                style={{
+                  marginTop: 10,
+                  fontSize: 13,
+                  lineHeight: 1.65,
+                  color: "var(--texte-gris)",
+                }}
+              >
+                Sans attendre le mois prochain, et à l&apos;adresse ci-dessus : le
+                bouton enregistre ces deux réglages avant d&apos;envoyer. À faire une
+                fois tout de suite pour vérifier que l&apos;email arrive, puis avant
+                toute manipulation délicate.
+                {p.sauvegarde_envoyee_le
+                  ? ` Dernier envoi : ${jourLong(p.sauvegarde_envoyee_le)}.`
+                  : " Aucun envoi pour l'instant."}
+              </p>
+            </div>
           </div>
 
           <h2 style={{ fontSize: 25, margin: "44px 0 8px" }}>Rappel avant la séance</h2>
@@ -355,30 +387,6 @@ export default async function Reglages({
             Enregistrer les réglages
           </button>
         </form>
-
-        <div className="carte" style={{ marginTop: 20 }}>
-          <p style={etiquette}>Envoyer une sauvegarde maintenant</p>
-          <p
-            style={{
-              margin: "8px 0 14px",
-              fontSize: 14,
-              lineHeight: 1.7,
-              color: "var(--texte-doux)",
-            }}
-          >
-            Sans attendre le mois prochain. À faire une fois tout de suite, pour
-            vérifier que l&apos;email arrive, puis avant toute manipulation
-            délicate.
-            {p.sauvegarde_envoyee_le
-              ? ` Dernier envoi automatique : ${jourLong(p.sauvegarde_envoyee_le)}.`
-              : " Aucun envoi pour l'instant."}
-          </p>
-          <form action={envoyerSauvegardeMaintenant}>
-            <button type="submit" className="bouton bouton--secondaire bouton--compact">
-              Envoyer maintenant
-            </button>
-          </form>
-        </div>
 
         <h2 style={{ fontSize: 25, margin: "56px 0 8px" }}>Votre agenda</h2>
         <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
