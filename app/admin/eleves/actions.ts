@@ -4,7 +4,11 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exigerAdmin } from "@/lib/admin";
 import { clientAdmin } from "@/lib/supabase";
-import { reponseAnnulation, reponseDemande } from "@/lib/emails";
+import {
+  reponseAnnulation,
+  reponseDemande,
+  reponseDeplacement,
+} from "@/lib/emails";
 
 function retour(chemin: string, parametre?: string): never {
   revalidatePath(chemin);
@@ -242,12 +246,29 @@ export async function repondreAnnulation(
   if (cours.some((c) => c.dossier_id !== dossierId)) retour(ou, "?erreur=decision");
 
   const reduction = cours[0].demande_type === "reduction";
+  const modification = cours[0].demande_type === "modification";
   const maintenant = new Date().toISOString();
+
+  // Le créneau proposé en remplacement, s'il y en a un.
+  const { data: proposes } = modification
+    ? await supabase
+        .from("reservations")
+        .select("id, debut, fin")
+        .eq("remplace", cours[0].id)
+        .eq("statut", "reservee")
+        .order("debut")
+    : { data: [] };
+
+  const nouveaux = proposes ?? [];
+  if (modification && nouveaux.length === 0) retour(ou, "?erreur=introuvable");
 
   const { error } = await supabase
     .from("reservations")
     .update({
       ...(decision === "acceptee" ? { statut: "annulee_dans_delai" } : {}),
+      // Un cours déplacé n'est pas un cours perdu : la base ne doit pas
+      // le requalifier en annulation tardive.
+      ...(decision === "acceptee" && modification ? { deplacee_le: maintenant } : {}),
       annulation_decision: decision,
       annulation_reponse: reponse,
       annulation_traitee_le: maintenant,
@@ -257,6 +278,26 @@ export async function repondreAnnulation(
   if (error) {
     console.error("réponse à l'annulation", error);
     retour(ou, "?erreur=enregistrement");
+  }
+
+  if (modification) {
+    // Accepté, le créneau proposé devient le cours. Refusé, il est rendu.
+    const { error: erreurNouveaux } = await supabase
+      .from("reservations")
+      .update(
+        decision === "acceptee"
+          ? { validee_le: maintenant }
+          : { statut: "annulee_dans_delai" }
+      )
+      .in(
+        "id",
+        nouveaux.map((n) => n.id)
+      );
+
+    if (erreurNouveaux) {
+      console.error("bascule du créneau proposé", erreurNouveaux);
+      retour(ou, "?erreur=enregistrement");
+    }
   }
 
   // On relit : le déclencheur a peut-être requalifié en hors délai.
@@ -286,25 +327,45 @@ export async function repondreAnnulation(
     .maybeSingle();
 
   if (dossier) {
-    const resultat = await reponseAnnulation({
-      destinataire: dossier.email,
-      prenom: dossier.prenom ?? "",
-      debut: cours[0].debut,
-      acceptee: decision === "acceptee",
-      facturable: apres?.statut === "annulee_hors_delai",
-      reponse,
-      reduction: reduction ? { heures: cours.length, restantes } : null,
-    });
+    const resultat = modification
+      ? await reponseDeplacement({
+          destinataire: dossier.email,
+          prenom: dossier.prenom ?? "",
+          ancien: {
+            debut: cours[0].debut,
+            fin: cours[cours.length - 1].fin,
+            heures: cours.length,
+          },
+          nouveau: {
+            debut: nouveaux[0].debut,
+            fin: nouveaux[nouveaux.length - 1].fin,
+            heures: nouveaux.length,
+          },
+          acceptee: decision === "acceptee",
+          reponse,
+        })
+      : await reponseAnnulation({
+          destinataire: dossier.email,
+          prenom: dossier.prenom ?? "",
+          debut: cours[0].debut,
+          acceptee: decision === "acceptee",
+          facturable: apres?.statut === "annulee_hors_delai",
+          reponse,
+          reduction: reduction ? { heures: cours.length, restantes } : null,
+        });
 
     await supabase.from("journal").insert({
       acteur: "pauline",
       dossier_id: dossierId,
       objet: "reservation",
       objet_id: cours[0].id,
-      action: `${reduction ? "reduction" : "annulation"}_${decision}`,
+      action: `${
+        modification ? "modification" : reduction ? "reduction" : "annulation"
+      }_${decision}`,
       details: {
         statut: apres?.statut,
         heures: cours.length,
+        ...(modification ? { vers: nouveaux[0].debut, heures_apres: nouveaux.length } : {}),
         email: resultat.detail,
       },
     });

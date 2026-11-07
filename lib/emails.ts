@@ -740,3 +740,103 @@ export async function reponseDemande(options: {
     ),
   });
 }
+
+/** Une demande de déplacement, pour Pauline. */
+export async function demandeDeplacement(options: {
+  prenomClient: string;
+  eleve: string;
+  ancien: { debut: string; fin: string; heures: number };
+  nouveau: { debut: string; fin: string; heures: number };
+  motif: string | null;
+  horsDelai: boolean;
+  lien: string;
+}): Promise<ResultatEnvoi> {
+  const avant = blocLong(options.ancien);
+  const apres = blocLong(options.nouveau);
+
+  return envoyer({
+    destinataire: IDENTITE.email,
+    sujet: `Demande de modification — ${creneauLong(options.ancien.debut)}`,
+    html: gabarit(
+      "Un cours doit être déplacé",
+      `<p style="${P}">${options.prenomClient} — élève : ${options.eleve}</p>
+
+       <table role="presentation" style="width:100%;border-collapse:collapse;margin:18px 0;">
+         <tr>
+           <td style="padding:12px 14px;background:#f5f1e8;border-radius:4px;">
+             <span style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#55604f;">Aujourd'hui</span><br>
+             <strong style="color:#143a24;">${avant}</strong>
+             <span style="color:#55604f;"> — ${options.ancien.heures} h</span>
+           </td>
+         </tr>
+         <tr><td style="height:8px;"></td></tr>
+         <tr>
+           <td style="padding:12px 14px;background:#fdf6e4;border-radius:4px;border-left:3px solid #e8c87a;">
+             <span style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#8a5e0c;">Demandé</span><br>
+             <strong style="color:#143a24;">${apres}</strong>
+             <span style="color:#55604f;"> — ${options.nouveau.heures} h</span>
+           </td>
+         </tr>
+       </table>
+
+       ${
+         options.motif
+           ? `<p style="${P}">Motif indiqué :<br><em>${echapper(options.motif)}</em></p>`
+           : ""
+       }
+       <p style="${P}">Le nouveau créneau est déjà retenu : personne d'autre ne peut
+         le prendre. L'ancien reste occupé tant que vous n'avez pas répondu, et il
+         n'est libéré qu'en cas d'acceptation.</p>
+       <p style="${P}">${
+         options.horsDelai
+           ? "<strong>Demande hors délai.</strong> Si vous l'acceptez, l'heure libérée n'est pas facturée pour autant : le cours n'est pas perdu, il change de place. Si cela ne vous convient pas, refusez."
+           : "Demande dans les délais."
+       }</p>
+       ${bouton(options.lien, "Répondre à la demande")}`
+    ),
+  });
+}
+
+/** La réponse de Pauline à une demande de déplacement. */
+export async function reponseDeplacement(options: {
+  destinataire: string;
+  prenom: string;
+  ancien: { debut: string; fin: string; heures: number };
+  nouveau: { debut: string; fin: string; heures: number };
+  acceptee: boolean;
+  reponse: string | null;
+}): Promise<ResultatEnvoi> {
+  const avant = blocLong(options.ancien);
+  const apres = blocLong(options.nouveau);
+
+  return envoyer({
+    destinataire: options.destinataire,
+    sujet: options.acceptee
+      ? `Cours déplacé — ${creneauLong(options.nouveau.debut)}`
+      : `Votre cours ne change pas — ${creneauLong(options.ancien.debut)}`,
+    html: gabarit(
+      options.acceptee ? "C'est déplacé" : "Le cours reste à sa place",
+      `<p style="${P}">Bonjour ${options.prenom},</p>
+       ${
+         options.acceptee
+           ? `<p style="${P}">Votre cours a bien été déplacé. Il a désormais lieu :</p>
+              <p style="${P}font-size:18px;color:#143a24;"><strong>${apres}</strong>
+                ${options.nouveau.heures > 1 ? ` — ${options.nouveau.heures} heures` : ""}</p>
+              <p style="${P}">L'ancien créneau du ${avant} est libéré, et ne vous est
+                pas facturé.</p>
+              <p style="${P}">Vous pouvez annuler ou déplacer à nouveau jusqu'à
+                24 heures avant la séance. Je vous enverrai le lien de connexion avant
+                le cours.</p>`
+           : `<p style="${P}">Je n'ai pas pu déplacer votre cours au ${apres}.</p>
+              <p style="${P}">Il reste donc prévu comme avant :</p>
+              <p style="${P}font-size:18px;color:#143a24;"><strong>${avant}</strong></p>`
+       }
+       ${
+         options.reponse
+           ? `<p style="${P}">Mon message :<br><em>${echapper(options.reponse)}</em></p>`
+           : ""
+       }
+       <p style="${P}">À bientôt,<br>Pauline</p>`
+    ),
+  });
+}

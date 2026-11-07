@@ -26,6 +26,7 @@ type Ligne = {
   prix_cents: number;
   validee_le: string | null;
   demande_type: string | null;
+  remplace: string | null;
   refus_motif: string | null;
   annulation_demandee_le: string | null;
   annulation_traitee_le: string | null;
@@ -60,7 +61,12 @@ function libelleStatut(ligne: Ligne, maintenant: string): string {
   return LIBELLE_STATUT[ligne.statut] ?? ligne.statut;
 }
 
-export default async function MonEspace() {
+export default async function MonEspace({
+  searchParams,
+}: {
+  searchParams: Promise<{ demande?: string }>;
+}) {
+  const { demande } = await searchParams;
   const dossier = await dossierConnecte();
   if (!dossier) redirect("/connexion");
 
@@ -70,7 +76,7 @@ export default async function MonEspace() {
     supabase
       .from("reservations")
       .select(
-        "id, debut, fin, statut, sujet, lien_visio, prix_cents, validee_le, demande_type, refus_motif, annulation_demandee_le, annulation_traitee_le, annulation_decision, annulation_reponse"
+        "id, debut, fin, statut, sujet, lien_visio, prix_cents, validee_le, demande_type, remplace, refus_motif, annulation_demandee_le, annulation_traitee_le, annulation_decision, annulation_reponse"
       )
       .eq("dossier_id", dossier.id)
       .order("debut", { ascending: false }),
@@ -97,9 +103,21 @@ export default async function MonEspace() {
   const toutes = (data ?? []) as Ligne[];
   const maintenant = new Date().toISOString();
   const aVenir = toutes.filter(
-    (r) => r.debut >= maintenant && r.statut === "reservee"
+    (r) => r.debut >= maintenant && r.statut === "reservee" && !r.remplace
   );
-  const passees = toutes.filter((r) => !(r.debut >= maintenant && r.statut === "reservee"));
+
+  // Les créneaux proposés en remplacement, rangés sous le cours qu'ils
+  // doivent remplacer.
+  const propositions = new Map<string, Ligne[]>();
+  for (const r of toutes) {
+    if (!r.remplace || r.statut !== "reservee") continue;
+    const liste = propositions.get(r.remplace) ?? [];
+    liste.push(r);
+    propositions.set(r.remplace, liste);
+  }
+  const passees = toutes.filter(
+    (r) => !(r.debut >= maintenant && r.statut === "reservee") && !r.remplace
+  );
 
   // Trois heures qui se suivent sont trois lignes en base, et un seul
   // cours pour l'élève. On ne les réunit que si leur situation est la
@@ -149,6 +167,13 @@ export default async function MonEspace() {
           </div>
         </div>
 
+        {demande === "deplacement" && (
+          <p className="succes" style={{ marginBottom: 20 }}>
+            Demande envoyée. Le nouveau créneau vous est retenu, l&apos;ancien reste
+            prévu, et Pauline vous répond par email.
+          </p>
+        )}
+
         <Bloc titre="Cours à venir">
           {aVenir.length === 0 ? (
             <Vide>
@@ -195,21 +220,48 @@ export default async function MonEspace() {
                   )}
 
                   {r.annulation_demandee_le && !r.annulation_traitee_le ? (
-                    <p className="annulation__etat">
-                      {r.demande_type === "reduction"
-                        ? "Réduction demandée. Pauline vous répond par email."
-                        : "Annulation demandée. Pauline vous répond par email."}
-                    </p>
+                    r.demande_type === "modification" ? (
+                      <p className="annulation__etat">
+                        Changement demandé
+                        {propositions.get(r.id)?.length
+                          ? ` pour le ${blocLong({
+                              debut: propositions.get(r.id)![0].debut,
+                              fin: propositions.get(r.id)![
+                                propositions.get(r.id)!.length - 1
+                              ].fin,
+                              heures: propositions.get(r.id)!.length,
+                            })}`
+                          : ""}
+                        . Pauline vous répond par email, et ce cours reste prévu
+                        jusque-là.
+                      </p>
+                    ) : (
+                      <p className="annulation__etat">
+                        Annulation demandée. Pauline vous répond par email.
+                      </p>
+                    )
                   ) : (
-                    <DemandeAnnulation
-                      ids={bloc.ids}
-                      heures={bloc.heures}
-                      enAttente={!r.validee_le}
-                      dansLesDelais={
-                        Date.parse(r.debut) - Date.now() >
-                        delaiAnnulation * 3600 * 1000
-                      }
-                    />
+                    <>
+                      {r.validee_le && (
+                        <p style={{ marginTop: 10 }}>
+                          <Link
+                            href={`/reserver?deplacer=${bloc.ids.join(",")}`}
+                            className="lien-action"
+                          >
+                            Modifier — date, heure ou durée
+                          </Link>
+                        </p>
+                      )}
+                      <DemandeAnnulation
+                        ids={bloc.ids}
+                        heures={bloc.heures}
+                        enAttente={!r.validee_le}
+                        dansLesDelais={
+                          Date.parse(r.debut) - Date.now() >
+                          delaiAnnulation * 3600 * 1000
+                        }
+                      />
+                    </>
                   )}
                 </div>
               </article>

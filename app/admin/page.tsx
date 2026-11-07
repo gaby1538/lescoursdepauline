@@ -62,6 +62,7 @@ export default async function TableauDeBord({
       )
       .eq("statut", "reservee")
       .is("validee_le", null)
+      .is("remplace", null)
       .order("debut"),
     supabase
       .from("reservations")
@@ -131,6 +132,30 @@ export default async function TableauDeBord({
   };
   // Une réduction porte sur plusieurs heures d'un coup : les présenter
   // séparément ferait croire à plusieurs demandes.
+  const idsDemandes = ((demandes.data ?? []) as unknown as { id: string }[]).map(
+    (r) => r.id
+  );
+  const { data: proposes } =
+    idsDemandes.length > 0
+      ? await supabase
+          .from("reservations")
+          .select("id, debut, fin, remplace")
+          .in("remplace", idsDemandes)
+          .eq("statut", "reservee")
+          .order("debut")
+      : { data: [] };
+
+  const propositions = new Map<string, { debut: string; fin: string; heures: number }>();
+  for (const r of proposes ?? []) {
+    const bloc = propositions.get(r.remplace!);
+    if (bloc) {
+      bloc.fin = r.fin;
+      bloc.heures += 1;
+    } else {
+      propositions.set(r.remplace!, { debut: r.debut, fin: r.fin, heures: 1 });
+    }
+  }
+
   const aTrancher = regrouperReservations(
     (demandes.data ?? []) as unknown as Trancher[],
     (a, b) => a.dossier_id === b.dossier_id && a.demande_type === b.demande_type
@@ -341,7 +366,7 @@ export default async function TableauDeBord({
         {aTrancher.length > 0 && (
           <>
             <h2 style={{ fontSize: 25, margin: "46px 0 8px" }}>
-              Demandes d&apos;annulation
+              Annulations et changements
               <span className="pastille-compte">{aTrancher.length}</span>
             </h2>
             <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
@@ -353,6 +378,8 @@ export default async function TableauDeBord({
               {aTrancher.map((bloc) => {
                 const r = bloc.tete;
                 const reduction = r.demande_type === "reduction";
+                const modification = r.demande_type === "modification";
+                const propose = propositions.get(r.id) ?? null;
                 const horsDelai =
                   Date.parse(r.debut) - Date.parse(r.annulation_demandee_le) <
                   delaiAnnulation * 3600 * 1000;
@@ -377,9 +404,13 @@ export default async function TableauDeBord({
                         {bloc.heures > 1 ? blocLong(bloc) : creneauLong(r.debut)}
                       </p>
                       <span className="etiquette">
-                        {horsDelai
-                          ? "Hors délai — resterait facturable"
-                          : "Dans les délais"}
+                        {modification
+                          ? horsDelai
+                            ? "Hors délai — jamais facturé"
+                            : "Dans les délais"
+                          : horsDelai
+                            ? "Hors délai — resterait facturable"
+                            : "Dans les délais"}
                       </span>
                     </div>
 
@@ -391,19 +422,54 @@ export default async function TableauDeBord({
                       }}
                     >
                       <strong style={{ color: "var(--foret)" }}>
-                        {reduction
-                          ? `Veut retirer ${bloc.heures} heure${
-                              bloc.heures > 1 ? "s" : ""
-                            } de ce cours`
-                          : bloc.heures > 1
-                            ? `Veut annuler les ${bloc.heures} heures`
-                            : "Veut annuler ce cours"}
+                        {modification
+                          ? "Veut déplacer ce cours"
+                          : reduction
+                            ? `Veut retirer ${bloc.heures} heure${
+                                bloc.heures > 1 ? "s" : ""
+                              } de ce cours`
+                            : bloc.heures > 1
+                              ? `Veut annuler les ${bloc.heures} heures`
+                              : "Veut annuler ce cours"}
                       </strong>
                       <br />
                       {r.dossiers?.eleve_prenom ?? "—"}
                       {r.dossiers?.eleve_classe ? ` · ${r.dossiers.eleve_classe}` : ""} —
                       demandé par {r.dossiers?.prenom} {r.dossiers?.nom}
                     </p>
+
+                    {propose ? (
+                      <div className="deplacement">
+                        <div className="deplacement__cote">
+                          <span className="surtitre">Aujourd&apos;hui</span>
+                          <p>{blocLong(bloc)}</p>
+                          <span className="deplacement__duree">{bloc.heures} h</span>
+                        </div>
+                        <span className="deplacement__fleche" aria-hidden="true">
+                          →
+                        </span>
+                        <div className="deplacement__cote deplacement__cote--neuf">
+                          <span className="surtitre">Demandé</span>
+                          <p>{blocLong(propose)}</p>
+                          <span className="deplacement__duree">{propose.heures} h</span>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {modification ? (
+                      <p
+                        style={{
+                          marginTop: 10,
+                          fontSize: 13.5,
+                          lineHeight: 1.6,
+                          color: "var(--texte-gris)",
+                        }}
+                      >
+                        Le nouveau créneau est déjà retenu. Si vous acceptez,
+                        l&apos;ancien est libéré et n&apos;est pas facturé, même hors
+                        délai : le cours n&apos;est pas perdu, il change de place.
+                      </p>
+                    ) : null}
 
                     {r.annulation_motif ? (
                       <p

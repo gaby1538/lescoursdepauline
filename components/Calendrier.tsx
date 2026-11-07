@@ -2,7 +2,11 @@
 
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
-import { reserver, type EtatReservation } from "@/app/reserver/actions";
+import {
+  reserver,
+  demanderDeplacement,
+  type EtatReservation,
+} from "@/app/reserver/actions";
 import { heure, jourLong, quantieme, moisDuJour, isoJour } from "@/lib/dates";
 import { GROUPES } from "@/lib/constantes";
 import { Champ, ChampClasse, Alerte, etiquette, saisie } from "@/components/Champs";
@@ -23,6 +27,13 @@ type Props = {
   moisPrecedent: string | null;
   moisSuivant: string;
   compte: CompteAffiche | null;
+  /** Renseigné quand on remplace un cours existant au lieu d'en créer un. */
+  deplacement: {
+    ids: string[];
+    debut: string;
+    fin: string;
+    heures: number;
+  } | null;
 };
 
 const CLASSES = [
@@ -42,11 +53,15 @@ export default function Calendrier({
   moisPrecedent,
   moisSuivant,
   compte,
+  deplacement,
 }: Props) {
   const [jourChoisi, setJourChoisi] = useState<string | null>(null);
   const [duree, setDuree] = useState(1);
   const [debutChoisi, setDebutChoisi] = useState<string | null>(null);
-  const [etat, action, enCours] = useActionState(reserver, etatInitial);
+  const [etat, action, enCours] = useActionState(
+    deplacement ? demanderDeplacement : reserver,
+    etatInitial
+  );
 
   const aujourdhui = isoJour(new Date());
 
@@ -258,6 +273,9 @@ export default function Calendrier({
           style={{ marginTop: 24, maxWidth: 620, marginLeft: "auto", marginRight: "auto" }}
         >
           <form action={action}>
+            {deplacement && (
+              <input type="hidden" name="deplacer" value={deplacement.ids.join(",")} />
+            )}
             {bloc.map((c) => (
               <input
                 key={c.debut}
@@ -270,7 +288,7 @@ export default function Calendrier({
             <div className="retenu">
               <div>
                 <p className="surtitre" style={{ marginBottom: 6 }}>
-                  Votre créneau
+                  {deplacement ? "Nouveau créneau" : "Votre créneau"}
                 </p>
                 <p className="retenu__quand">
                   {jourLong(jourChoisi!)}, de {heure(bloc[0].debut)} à {heure(finBloc)}
@@ -324,16 +342,20 @@ export default function Calendrier({
 
             <div style={{ marginTop: 16 }}>
               <label htmlFor="sujet" style={etiquette}>
-                Sur quoi travailler ?{" "}
+                {deplacement ? "Pourquoi ce changement ?" : "Sur quoi travailler ?"}{" "}
                 <span style={{ fontWeight: 400, color: "var(--texte-gris)" }}>
                   (facultatif)
                 </span>
               </label>
               <textarea
-                id="sujet"
-                name="sujet"
+                id={deplacement ? "motif" : "sujet"}
+                name={deplacement ? "motif" : "sujet"}
                 rows={3}
-                placeholder="Le chapitre sur la photosynthèse, un DS à préparer…"
+                placeholder={
+                  deplacement
+                    ? "Un imprévu, un contrôle déplacé…"
+                    : "Le chapitre sur la photosynthèse, un DS à préparer…"
+                }
                 style={{ ...saisie, minHeight: 0, padding: "11px 14px", resize: "vertical" }}
               />
             </div>
@@ -349,11 +371,27 @@ export default function Calendrier({
                 color: "var(--texte-doux)",
               }}
             >
-              <strong style={{ color: "var(--foret)" }}>Rien à payer maintenant.</strong>{" "}
-              Le tarif horaire dépend du niveau —{" "}
-              <Link href="/tarifs">voir les tarifs</Link>. La facture arrive en fin de
-              mois, à régler sous 30 jours par Wero ou virement. Le premier échange est
-              gratuit.
+              {deplacement ? (
+                <>
+                  <strong style={{ color: "var(--foret)" }}>
+                    Ce créneau est retenu dès maintenant.
+                  </strong>{" "}
+                  Personne d&apos;autre ne peut le prendre. Votre cours du{" "}
+                  {jourLong(deplacement.debut.slice(0, 10))} reste prévu tant que
+                  Pauline n&apos;a pas répondu, et il ne vous sera pas facturé si elle
+                  accepte le changement.
+                </>
+              ) : (
+                <>
+                  <strong style={{ color: "var(--foret)" }}>
+                    Rien à payer maintenant.
+                  </strong>{" "}
+                  Le tarif horaire dépend du niveau —{" "}
+                  <Link href="/tarifs">voir les tarifs</Link>. La facture arrive en fin
+                  de mois, à régler sous 30 jours par Wero ou virement. Le premier
+                  échange est gratuit.
+                </>
+              )}
             </div>
 
             {etat.erreur && <Alerte>{etat.erreur}</Alerte>}
@@ -364,10 +402,14 @@ export default function Calendrier({
               className="bouton bouton--principal"
               style={{ marginTop: 20, width: "100%", opacity: enCours ? 0.6 : 1 }}
             >
-              {enCours ? "Enregistrement…" : "Confirmer la réservation"}
+              {enCours
+                ? "Enregistrement…"
+                : deplacement
+                  ? "Demander ce changement"
+                  : "Confirmer la réservation"}
             </button>
 
-            {!compte && (
+            {!compte && !deplacement && (
               <p
                 style={{
                   marginTop: 14,

@@ -5,7 +5,11 @@ import { clientAdmin, messageErreurReservation } from "@/lib/supabase";
 import { dossierConnecte } from "@/lib/session";
 import { adresseBloquee, groupeDeLaClasse } from "@/lib/reservations";
 import { trouverDossierParEmail } from "@/lib/comptes";
-import { confirmationReservation, alerteNouvelleReservation } from "@/lib/emails";
+import {
+  confirmationReservation,
+  alerteNouvelleReservation,
+  demandeDeplacement,
+} from "@/lib/emails";
 import { lienActivation, VALIDITE_JETON_JOURS } from "@/lib/comptes";
 import { autoriserEnvoi, PLAFONDS } from "@/lib/limites";
 
@@ -237,4 +241,160 @@ export async function reserver(
       enAttente ? "&attente=1" : ""
     }`
   );
+}
+
+/**
+ * L'élève propose une autre date, une autre heure, une autre durée.
+ *
+ * Le créneau proposé est réservé tout de suite, en attente de
+ * validation, et pointe vers le cours qu'il remplace. C'est la seule
+ * façon de savoir qu'il est réellement libre — ce sont les
+ * déclencheurs de la base qui le disent — et d'éviter qu'un autre
+ * élève le prenne pendant que Pauline réfléchit.
+ *
+ * Si la base refuse le nouveau créneau, rien n'est touché : l'ancien
+ * cours reste tel quel et l'élève voit pourquoi.
+ */
+export async function demanderDeplacement(
+  _etat: EtatReservation,
+  formulaire: FormData
+): Promise<EtatReservation> {
+  const dossier = await dossierConnecte();
+  if (!dossier) return { erreur: "Connectez-vous pour modifier un cours." };
+
+  const anciens = String(formulaire.get("deplacer") ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter((v) => /^[0-9a-f-]{36}$/.test(v));
+
+  if (anciens.length === 0) return { erreur: "Cours introuvable." };
+
+  const vus = new Set<string>();
+  const creneaux = formulaire
+    .getAll("creneaux")
+    .map((valeur) => String(valeur).split("|"))
+    .filter(
+      (paire) =>
+        paire.length === 2 &&
+        ISO.test(paire[0]) &&
+        ISO.test(paire[1]) &&
+        paire[0] < paire[1]
+    )
+    .map(([debut, fin]) => ({ debut, fin }))
+    .filter((c) => (vus.has(c.debut) ? false : vus.add(c.debut)))
+    .sort((a, b) => a.debut.localeCompare(b.debut));
+
+  if (creneaux.length === 0) return { erreur: "Choisissez d'abord un créneau." };
+  if (creneaux.length > MAX_HEURES) {
+    return { erreur: `Pas plus de ${MAX_HEURES} heures en une fois.` };
+  }
+
+  const supabase = clientAdmin();
+
+  const { data: lignes } = await supabase
+    .from("reservations")
+    .select("id, debut, fin, statut, validee_le, annulation_demandee_le, annulation_traitee_le")
+    .in("id", anciens)
+    .eq("dossier_id", dossier.id)
+    .order("debut");
+
+  const cours = lignes ?? [];
+  if (cours.length !== anciens.length) return { erreur: "Cours introuvable." };
+  if (cours.some((c) => c.statut !== "reservee")) {
+    return { erreur: "Ce cours n'est plus modifiable." };
+  }
+  if (cours[0].debut < new Date().toISOString()) {
+    return { erreur: "Ce cours est passé. Écrivez-moi directement." };
+  }
+  if (cours.some((c) => c.annulation_demandee_le && !c.annulation_traitee_le)) {
+    return { erreur: "Une demande est déjà en attente pour ce cours." };
+  }
+  if (creneaux.some((n) => cours.some((a) => a.debut === n.debut))) {
+    return { erreur: "Le nouveau créneau est identique à l'ancien." };
+  }
+
+  const sujet = String(formulaire.get("sujet") ?? "").trim() || null;
+  const motif = String(formulaire.get("motif") ?? "").trim().slice(0, 500) || null;
+
+  const { error: erreurNouveaux } = await supabase.from("reservations").insert(
+    creneaux.map((c) => ({
+      dossier_id: dossier.id,
+      debut: c.debut,
+      fin: c.fin,
+      sujet,
+      validee_le: null,
+      remplace: cours[0].id,
+    }))
+  );
+
+  if (erreurNouveaux) {
+    return { erreur: messageErreurReservation(erreurNouveaux) };
+  }
+
+  const maintenant = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("reservations")
+    .update({
+      demande_type: "modification",
+      annulation_demandee_le: maintenant,
+      annulation_motif: motif,
+      annulation_decision: null,
+      annulation_reponse: null,
+      annulation_traitee_le: null,
+    })
+    .in("id", anciens)
+    .eq("dossier_id", dossier.id);
+
+  if (error) {
+    // Le nouveau créneau existe déjà : on le retire plutôt que de
+    // laisser l'élève avec deux cours et aucune demande.
+    await supabase.from("reservations").delete().eq("remplace", cours[0].id);
+    console.error("demande de déplacement", error);
+    return { erreur: "La demande n'a pas pu être enregistrée. Réessayez." };
+  }
+
+  const { data: p } = await supabase
+    .from("parametres")
+    .select("delai_annulation_h")
+    .eq("id", true)
+    .maybeSingle();
+
+  const limite = new Date(
+    Date.parse(cours[0].debut) - (p?.delai_annulation_h ?? 24) * 3600 * 1000
+  ).toISOString();
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com";
+
+  const resultat = await demandeDeplacement({
+    prenomClient: `${dossier.prenom ?? ""} ${dossier.nom ?? ""}`.trim(),
+    eleve: dossier.eleve_prenom ?? "",
+    ancien: { debut: cours[0].debut, fin: cours[cours.length - 1].fin, heures: cours.length },
+    nouveau: {
+      debut: creneaux[0].debut,
+      fin: creneaux[creneaux.length - 1].fin,
+      heures: creneaux.length,
+    },
+    motif,
+    horsDelai: maintenant > limite,
+    lien: `${site}/admin`,
+  });
+
+  await supabase.from("journal").insert({
+    acteur: "client",
+    dossier_id: dossier.id,
+    objet: "reservation",
+    objet_id: cours[0].id,
+    action: "modification_demandee",
+    details: {
+      motif,
+      hors_delai: maintenant > limite,
+      de: cours.length,
+      a: creneaux.length,
+      vers: creneaux[0].debut,
+      email: resultat.detail,
+    },
+  });
+
+  redirect("/mon-espace?demande=deplacement");
 }
