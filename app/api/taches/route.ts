@@ -19,26 +19,43 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(requete: NextRequest) {
   const attendu = process.env.CLE_TACHES;
-  const fourni =
+  const brut =
     requete.headers.get("x-cle-taches") ??
     requete.nextUrl.searchParams.get("cle") ??
     "";
 
-  // Deux refus distincts, parce qu'ils se corrigent différemment et que
-  // « accès refusé » ne disait pas lequel des deux.
+  // Un copier-coller rapporte souvent un espace ou un retour à la ligne.
+  // Ce n'est pas une raison de refuser : on compare les valeurs nettes.
+  const fourni = brut.trim();
+
+  // Trois refus distincts, parce qu'ils se corrigent différemment et que
+  // « accès refusé » ne disait pas lequel des trois.
   if (!attendu) {
     return new NextResponse(
-      "La variable CLE_TACHES n'existe pas sur ce déploiement. " +
-        "Ajoutez-la dans Vercel, puis redéployez.",
+      "CLE_TACHES n'existe pas sur ce déploiement. Ajoutez-la dans Vercel, " +
+        "puis redéployez : une variable n'est lue qu'à la construction.",
       { status: 503 }
     );
   }
 
-  if (fourni !== attendu) {
-    return new NextResponse(
-      "Clé refusée : celle envoyée ne correspond pas à CLE_TACHES.",
-      { status: 403 }
-    );
+  if (fourni !== attendu.trim()) {
+    // Ce message ne décrit que ce qui a été envoyé, jamais ce qui est
+    // attendu. Il dit à Pauline quoi corriger sans rien révéler.
+    const diagnostic =
+      brut === ""
+        ? "aucune clé n'a été reçue — l'en-tête x-cle-taches est absent, " +
+          "ou son nom est mal orthographié"
+        : brut !== fourni
+          ? "la clé reçue comporte un espace ou un retour à la ligne en trop, " +
+            "et ne correspond toujours pas une fois nettoyée"
+          : fourni.length !== attendu.trim().length
+            ? `la clé reçue fait ${fourni.length} caractères, ` +
+              `celle attendue n'en fait pas autant — valeur incomplète, ` +
+              `ou déploiement pas encore refait depuis son changement`
+            : "la clé reçue a la bonne longueur mais n'est pas la bonne — " +
+              "vérifiez que Vercel a été redéployé depuis son dernier changement";
+
+    return new NextResponse(`Clé refusée : ${diagnostic}.`, { status: 403 });
   }
 
   const supabase = clientAdmin();
