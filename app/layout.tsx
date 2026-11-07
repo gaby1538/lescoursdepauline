@@ -1,3 +1,4 @@
+import DonneesStructurees from "@/components/DonneesStructurees";
 import type { Metadata } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
 import Entete from "@/components/Entete";
@@ -43,6 +44,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "fr_FR",
+    url: "./",
     siteName: "Les cours de Pauline",
     title: "Comprendre pour réussir durablement",
     description:
@@ -57,6 +59,7 @@ export default function RootLayout({
   return (
     <html lang="fr" className={`${serif.variable} ${sans.variable}`}>
       <body>
+        <DonneesStructurees />
         <Entete />
         <main>{children}</main>
         <Pied />

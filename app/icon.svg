@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Les cours de Pauline">
+  <rect width="64" height="64" rx="13" fill="#143a24"/>
+  <!-- Une feuille : la SVT sans dire « microscope », et une forme qui
+       reste lisible à seize pixels dans un onglet. -->
+  <path d="M32 13c11 4 17 12 17 21 0 9-7 16-17 17-10-1-17-8-17-17 0-9 6-17 17-21z"
+        fill="none" stroke="#e8c87a" stroke-width="3.2" stroke-linejoin="round"/>
+  <path d="M32 15v35" stroke="#e8c87a" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M32 27l9-5M32 36l10-5M32 27l-9-5M32 36l-10-5"
+        stroke="#e8c87a" stroke-width="2.6" stroke-linecap="round"/>
+</svg>
