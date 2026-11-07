@@ -143,41 +143,52 @@ export default async function Eleves() {
           )}
         </div>
 
-        <h2 style={{ fontSize: 25, margin: "52px 0 10px" }}>Liste noire</h2>
-        <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
-          Ces adresses ne peuvent plus créer de dossier ni réserver. Le site ne le leur
-          dit pas explicitement : il répond que la réservation n&apos;a pas pu être
-          enregistrée.
-        </p>
+        {/* Bloquer quelqu'un doit rester exceptionnel : la section est
+            repliée, sans titre de section, et ne s'annonce que par une
+            ligne. Le compte n'apparaît que si quelqu'un est bloqué. */}
+        <details className="repli-discret">
+          <summary>
+            Adresses bloquées
+            {(noire.data ?? []).length > 0 ? ` (${(noire.data ?? []).length})` : ""}
+          </summary>
 
-        <div className="tableau-enveloppe" style={{ marginTop: 18 }}>
-          {(noire.data ?? []).length === 0 ? (
-            <p style={{ padding: 24, fontSize: 15, color: "var(--texte-doux)" }}>
-              Personne n&apos;est bloqué.
+          <div className="repli-discret__corps">
+            <p style={{ fontSize: 14, lineHeight: 1.65, color: "var(--texte-gris)" }}>
+              Ces adresses ne peuvent plus créer de dossier ni réserver. Le site ne le
+              leur dit pas : il répond que la réservation n&apos;a pas pu être
+              enregistrée. Le blocage s&apos;ajoute depuis la fiche d&apos;un élève,
+              au moment de la supprimer.
             </p>
-          ) : (
-            <table className="liste">
-              <tbody>
-                {(noire.data ?? []).map((n) => (
-                  <tr key={n.id}>
-                    <td>
-                      <strong>{n.email_normalise ?? n.telephone}</strong>
-                    </td>
-                    <td>{n.motif ?? "—"}</td>
-                    <td className="droite">
-                      <form action={retirerDeLaListeNoire}>
-                        <input type="hidden" name="id" value={n.id} />
-                        <button type="submit" className="lien-bouton">
-                          débloquer
-                        </button>
-                      </form>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+
+            {(noire.data ?? []).length === 0 ? (
+              <p style={{ marginTop: 12, fontSize: 14, color: "var(--texte-gris)" }}>
+                Personne n&apos;est bloqué.
+              </p>
+            ) : (
+              <table className="liste" style={{ marginTop: 14 }}>
+                <tbody>
+                  {(noire.data ?? []).map((n) => (
+                    <tr key={n.id}>
+                      <td>
+                        <strong>{n.email_normalise ?? n.telephone}</strong>
+                      </td>
+                      <td>{n.motif ?? "—"}</td>
+                      <td className="droite">
+                        <form action={retirerDeLaListeNoire}>
+                          <input type="hidden" name="id" value={n.id} />
+                          <button type="submit" className="lien-bouton">
+                            débloquer
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </details>
+
       </div>
     </section>
   );

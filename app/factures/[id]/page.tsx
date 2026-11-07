@@ -190,6 +190,15 @@ export default async function Facture({
           Pour enregistrer cette facture en PDF, utilisez l&apos;impression de votre
           navigateur et choisissez « Enregistrer au format PDF ».
         </p>
+
+        {admin && (
+          <p className="facture__recours">
+            En dernier recours, si une mention très particulière manque :{" "}
+            <a href={`/admin/factures/${id}/docx`}>télécharger une version Word</a>.
+            Ce fichier est une copie : la facture du site reste la référence
+            comptable, et la modifier là-bas ne change rien ici.
+          </p>
+        )}
       </div>
     </section>
   );

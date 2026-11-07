@@ -285,6 +285,12 @@ export default async function Factures({
                         <Link href={`/factures/${f.id}`} target="_blank">
                           voir
                         </Link>
+                        <a
+                          href={`/admin/factures/${f.id}/docx`}
+                          style={{ fontSize: 12.5, color: "var(--texte-gris)" }}
+                        >
+                          version Word
+                        </a>
                         {f.statut === "brouillon" && (
                           <>
                             <Link href={`/admin/factures/${f.id}/modifier`}>

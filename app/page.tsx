@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { IDENTITE, euros, TARIFS_PAR_DEFAUT } from "@/lib/constantes";
+import GrilleTarifs from "@/components/GrilleTarifs";
+import { IDENTITE } from "@/lib/constantes";
 import { IconeAgenda, IconeWhatsapp, IconeCadeau, IconeCoche } from "@/components/Icones";
 
 const etapes = [
@@ -250,31 +251,7 @@ export default function Accueil() {
             payer sur le site.
           </p>
 
-          <div className="tableau-enveloppe">
-            <div className="tableau-defilant">
-              <table className="tarifs">
-                <thead>
-                  <tr>
-                    <th scope="col">Niveau</th>
-                    <th scope="col">À la séance</th>
-                    <th scope="col">Suivi régulier</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Collège et seconde</td>
-                    <td>{euros(TARIFS_PAR_DEFAUT[0].seance)}</td>
-                    <td>{euros(TARIFS_PAR_DEFAUT[0].regulier)}</td>
-                  </tr>
-                  <tr>
-                    <td>Première et terminale</td>
-                    <td>{euros(TARIFS_PAR_DEFAUT[1].seance)}</td>
-                    <td>{euros(TARIFS_PAR_DEFAUT[1].regulier)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <GrilleTarifs />
 
         </div>
       </section>

@@ -1109,3 +1109,125 @@ table.liste .droite { text-align: right; }
 }
 
 .repli__corps { padding-top: 18px; }
+
+/* ------------------------------------------------------------------ */
+/*  Tarifs                                                             */
+/* ------------------------------------------------------------------ */
+
+.tarifs-cartes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.tarif {
+  padding: 26px 24px 24px;
+  border: 1px solid var(--bordure);
+  border-radius: 6px;
+  background: var(--carte);
+}
+
+.tarif__niveau {
+  font-family: var(--serif);
+  font-size: 21px;
+  line-height: 1.25;
+  color: var(--foret);
+}
+
+.tarif__detail {
+  margin-top: 5px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--texte-gris);
+}
+
+.tarif__lignes {
+  margin-top: 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.tarif__ligne {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--bordure-douce);
+}
+
+.tarif__prix {
+  font-family: var(--serif);
+  font-size: 30px;
+  line-height: 1;
+  color: var(--foret);
+  white-space: nowrap;
+}
+
+.tarif__quoi {
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--texte-doux);
+}
+
+.tarif__note {
+  display: block;
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: var(--texte-gris);
+}
+
+.tarif__ligne--accent .tarif__prix { color: var(--or); }
+
+@media (max-width: 760px) {
+  .tarifs-cartes { grid-template-columns: 1fr; gap: 14px; }
+  .tarif { padding: 22px 20px 20px; }
+  .tarif__prix { font-size: 27px; }
+}
+
+/* Le recours : présent, mais au second plan. On n'invite pas à bricoler
+   une facture, on prévoit seulement le cas où il le faut. */
+.facture__recours {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--texte-gris);
+  text-align: center;
+}
+.facture__recours a { color: var(--texte-gris); }
+.facture__recours a:hover { color: var(--or-texte); }
+
+@media print {
+  .facture__recours { display: none; }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Replis discrets : ce qui doit exister sans se faire remarquer      */
+/* ------------------------------------------------------------------ */
+
+.repli-discret {
+  margin-top: 44px;
+  padding-top: 18px;
+  border-top: 1px solid var(--bordure-douce);
+}
+
+.repli-discret > summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--texte-gris);
+  user-select: none;
+}
+.repli-discret > summary::-webkit-details-marker { display: none; }
+.repli-discret > summary::before {
+  content: "›";
+  display: inline-block;
+  margin-right: 8px;
+  transition: transform 0.15s;
+}
+.repli-discret[open] > summary::before { transform: rotate(90deg); }
+.repli-discret > summary:hover { color: var(--foret); }
+
+.repli-discret__corps {
+  margin-top: 14px;
+  max-width: 640px;
+}

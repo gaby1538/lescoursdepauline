@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { euros, TARIFS_PAR_DEFAUT } from "@/lib/constantes";
+import GrilleTarifs from "@/components/GrilleTarifs";
 import { IconeCoche } from "@/components/Icones";
 
 export const metadata: Metadata = {
@@ -42,55 +42,7 @@ export default function Tarifs() {
 
       <section style={{ paddingTop: 48 }}>
         <div className="conteneur-etroit">
-          <div className="tableau-enveloppe">
-            <div className="tableau-defilant">
-              <table className="tarifs">
-                <thead>
-                  <tr>
-                    <th scope="col">Niveau</th>
-                    <th scope="col">À la séance</th>
-                    <th scope="col">Suivi régulier</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>
-                      Collège et seconde
-                      <span
-                        style={{
-                          display: "block",
-                          marginTop: 5,
-                          fontSize: 14,
-                          color: "var(--texte-gris)",
-                        }}
-                      >
-                        De la sixième à la seconde générale
-                      </span>
-                    </td>
-                    <td>{euros(TARIFS_PAR_DEFAUT[0].seance)}</td>
-                    <td>{euros(TARIFS_PAR_DEFAUT[0].regulier)}</td>
-                  </tr>
-                  <tr>
-                    <td>
-                      Première et terminale
-                      <span
-                        style={{
-                          display: "block",
-                          marginTop: 5,
-                          fontSize: 14,
-                          color: "var(--texte-gris)",
-                        }}
-                      >
-                        Spécialité SVT comprise
-                      </span>
-                    </td>
-                    <td>{euros(TARIFS_PAR_DEFAUT[1].seance)}</td>
-                    <td>{euros(TARIFS_PAR_DEFAUT[1].regulier)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <GrilleTarifs />
 
           <p style={{ marginTop: 18, fontSize: 14.5, lineHeight: 1.6, color: "var(--texte-doux)" }}>
             <strong style={{ color: "var(--foret)" }}>Le suivi régulier</strong>{" "}
