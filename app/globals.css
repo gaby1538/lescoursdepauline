@@ -1231,3 +1231,27 @@ table.liste .droite { text-align: right; }
   margin-top: 14px;
   max-width: 640px;
 }
+
+/* Choisir combien d'heures garder, dans le volet d'annulation. */
+.annulation__choix {
+  padding-bottom: 14px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--bordure-douce);
+}
+.annulation__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+}
+.annulation__options .duree {
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 13.5px;
+}
+.annulation__consequence {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--or-texte);
+}

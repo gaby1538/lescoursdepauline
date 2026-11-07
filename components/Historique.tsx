@@ -21,6 +21,9 @@ const LIBELLES: Record<string, string> = {
   "reservation:demande_refusee": "Demande refusée",
   "reservation:demande_retiree": "Demande retirée par l'élève",
   "reservation:annulation_demandee": "Annulation demandée",
+  "reservation:reduction_demandee": "Réduction d'heures demandée",
+  "reservation:reduction_acceptee": "Réduction acceptée",
+  "reservation:reduction_refusee": "Réduction refusée",
   "reservation:annulation_acceptee": "Annulation acceptée",
   "reservation:annulation_refusee": "Annulation refusée",
   "reservation:annulee_par_pauline": "Cours annulé",
@@ -69,6 +72,12 @@ function precision(e: Evenement): string | null {
       d.hors_delai ? "hors délai" : null,
     ].filter(Boolean);
     return bouts.length > 0 ? bouts.join(" · ") : null;
+  }
+  // « Annulation acceptée » ne dit pas l'essentiel : la séance est-elle
+  // due ? C'est la seule question que se pose celui qui relit.
+  if (e.action === "annulation_acceptee" || e.action === "reduction_acceptee") {
+    if (d.statut === "annulee_hors_delai") return "hors délai, séance due";
+    if (d.statut === "annulee_dans_delai") return "dans les délais, sans frais";
   }
   if (e.action === "active" && typeof d.reservations_rattachees === "number") {
     const n = d.reservations_rattachees;

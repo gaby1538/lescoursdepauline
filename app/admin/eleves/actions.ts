@@ -216,22 +216,32 @@ export async function repondreAnnulation(
 ): Promise<void> {
   await exigerAdmin();
 
-  const id = String(formulaire.get("id") ?? "");
-  const reponse = String(formulaire.get("reponse") ?? "").trim().slice(0, 500) || null;
   const ou = destination(formulaire, "/admin");
+  const ids = String(formulaire.get("ids") ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter((v) => /^[0-9a-f-]{36}$/.test(v));
+  const reponse = String(formulaire.get("reponse") ?? "").trim().slice(0, 500) || null;
 
-  if (!id || !["acceptee", "refusee"].includes(decision)) retour(ou, "?erreur=decision");
+  if (ids.length === 0 || !["acceptee", "refusee"].includes(decision)) {
+    retour(ou, "?erreur=decision");
+  }
 
   const supabase = clientAdmin();
 
-  const { data: cours } = await supabase
+  const { data: lignes } = await supabase
     .from("reservations")
-    .select("id, debut, statut, dossier_id")
-    .eq("id", id)
-    .maybeSingle();
+    .select("id, debut, fin, statut, dossier_id, demande_type")
+    .in("id", ids)
+    .order("debut");
 
-  if (!cours || cours.statut !== "reservee") retour(ou, "?erreur=introuvable");
+  const cours = (lignes ?? []).filter((c) => c.statut === "reservee");
+  if (cours.length === 0) retour(ou, "?erreur=introuvable");
 
+  const dossierId = cours[0].dossier_id;
+  if (cours.some((c) => c.dossier_id !== dossierId)) retour(ou, "?erreur=decision");
+
+  const reduction = cours[0].demande_type === "reduction";
   const maintenant = new Date().toISOString();
 
   const { error } = await supabase
@@ -242,7 +252,7 @@ export async function repondreAnnulation(
       annulation_reponse: reponse,
       annulation_traitee_le: maintenant,
     })
-    .eq("id", id);
+    .in("id", cours.map((c) => c.id));
 
   if (error) {
     console.error("réponse à l'annulation", error);
@@ -253,35 +263,55 @@ export async function repondreAnnulation(
   const { data: apres } = await supabase
     .from("reservations")
     .select("statut")
-    .eq("id", id)
+    .eq("id", cours[0].id)
     .maybeSingle();
+
+  // Pour une réduction, ce qui intéresse l'élève est ce qui reste.
+  let restantes = 0;
+  if (reduction && decision === "acceptee") {
+    const { count } = await supabase
+      .from("reservations")
+      .select("id", { count: "exact", head: true })
+      .eq("dossier_id", dossierId)
+      .eq("statut", "reservee")
+      .gte("debut", new Date(Date.parse(cours[0].debut) - 12 * 3600 * 1000).toISOString())
+      .lt("debut", cours[0].debut);
+    restantes = count ?? 0;
+  }
 
   const { data: dossier } = await supabase
     .from("dossiers")
     .select("email, prenom")
-    .eq("id", cours.dossier_id)
+    .eq("id", dossierId)
     .maybeSingle();
 
   if (dossier) {
     const resultat = await reponseAnnulation({
       destinataire: dossier.email,
       prenom: dossier.prenom ?? "",
-      debut: cours.debut,
+      debut: cours[0].debut,
       acceptee: decision === "acceptee",
       facturable: apres?.statut === "annulee_hors_delai",
       reponse,
+      reduction: reduction ? { heures: cours.length, restantes } : null,
     });
 
     await supabase.from("journal").insert({
       acteur: "pauline",
-      dossier_id: cours.dossier_id,
+      dossier_id: dossierId,
       objet: "reservation",
-      objet_id: id,
-      action: `annulation_${decision}`,
-      details: { statut: apres?.statut, email: resultat.detail },
+      objet_id: cours[0].id,
+      action: `${reduction ? "reduction" : "annulation"}_${decision}`,
+      details: {
+        statut: apres?.statut,
+        heures: cours.length,
+        email: resultat.detail,
+      },
     });
   }
 
+  revalidatePath("/reserver");
+  revalidatePath("/mon-espace");
   retour(ou, "?ok=1");
 }
 

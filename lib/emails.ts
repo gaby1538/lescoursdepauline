@@ -229,12 +229,18 @@ export async function confirmationReservation(options: {
                 Je confirme en général dans la journée, et vous recevrez un email dès
                 que ce sera fait. Rien n'est définitif avant cette réponse, et rien ne
                 vous sera facturé si je ne peux pas assurer le cours.</p>`
-           : `<p style="${P}">Vous pouvez annuler ou déplacer jusqu'à 24 heures avant
-                ${plusieurs ? "chaque séance" : "la séance"}, sans frais. Au-delà, la
-                séance est due.</p>
-              <p style="${P}">Il n'y a rien à régler maintenant : je vous enverrai une
-                facture en fin de mois.</p>`
+           : ""
        }
+       <p style="${P}">Une fois ${
+         options.enAttente ? "le cours confirmé, vous pourrez" : "réservé, vous pouvez"
+       } annuler sans frais jusqu'à 24 heures avant
+         ${plusieurs ? "chaque séance" : "la séance"}. Au-delà, la séance est due.${
+           plusieurs
+             ? " Vous pouvez aussi demander à n'en garder qu'une partie."
+             : ""
+         } Tout se fait depuis votre espace, et je vous réponds par email.</p>
+       <p style="${P}">Il n'y a rien à régler maintenant : je vous enverrai une
+         facture en fin de mois, payable par virement.</p>
        ${blocConfirmation}
        <p style="${P}">À bientôt,<br>Pauline</p>`
     ),
@@ -413,14 +419,33 @@ export async function demandeAnnulation(options: {
   motif: string | null;
   horsDelai: boolean;
   lien: string;
+  /** Renseigné quand l'élève veut raccourcir le cours au lieu de l'annuler. */
+  reduction?: {
+    avant: number;
+    apres: number;
+    debutCours: string;
+  } | null;
 }): Promise<ResultatEnvoi> {
+  const r = options.reduction;
+
   return envoyer({
     destinataire: IDENTITE.email,
-    sujet: `Demande d'annulation — ${creneauLong(options.debut)}`,
+    sujet: r
+      ? `Demande de réduction — ${creneauLong(r.debutCours)}`
+      : `Demande d'annulation — ${creneauLong(options.debut)}`,
     html: gabarit(
-      "Une annulation est demandée",
-      `<p style="${P}"><strong>${creneauLong(options.debut)}</strong><br>
+      r ? "Une réduction d'heures est demandée" : "Une annulation est demandée",
+      `<p style="${P}"><strong>${creneauLong(
+         r ? r.debutCours : options.debut
+       )}</strong><br>
          ${options.prenomClient} — élève : ${options.eleve}</p>
+       ${
+         r
+           ? `<p style="${P}">Le cours passerait de <strong>${r.avant} heures</strong>
+                à <strong>${r.apres} heure${r.apres > 1 ? "s" : ""}</strong>. Les
+                heures retirées commencent à ${heure(options.debut)}.</p>`
+           : ""
+       }
        ${
          options.motif
            ? `<p style="${P}">Motif indiqué :<br><em>${options.motif}</em></p>`
@@ -428,12 +453,17 @@ export async function demandeAnnulation(options: {
        }
        <p style="${P}">${
          options.horsDelai
-           ? "<strong>Demande hors délai.</strong> Si vous l'acceptez, la séance sera comptée comme annulée tardivement, donc facturable."
-           : "Demande dans les délais. Acceptée, la séance ne sera pas facturée."
+           ? `<strong>Demande hors délai.</strong> Si vous l'acceptez, ${
+               r ? "les heures retirées seront comptées" : "la séance sera comptée"
+             } comme annulée${r ? "s" : ""} tardivement, donc facturable${r ? "s" : ""}.`
+           : `Demande dans les délais. Acceptée, ${
+               r ? "les heures retirées ne seront pas facturées" : "la séance ne sera pas facturée"
+             }.`
        }</p>
        ${bouton(options.lien, "Répondre à la demande")}
-       <p style="${P}font-size:13px;color:#55604f;">Le créneau reste réservé tant que
-         vous n'avez pas répondu.</p>`
+       <p style="${P}font-size:13px;color:#55604f;">${
+         r ? "Les heures restent réservées" : "Le créneau reste réservé"
+       } tant que vous n'avez pas répondu.</p>`
     ),
   });
 }
@@ -445,27 +475,59 @@ export async function reponseAnnulation(options: {
   acceptee: boolean;
   facturable: boolean;
   reponse: string | null;
+  /** Renseigné quand la demande portait sur un raccourcissement. */
+  reduction?: { heures: number; restantes: number } | null;
 }): Promise<ResultatEnvoi> {
   const quand = creneauLong(options.debut);
+  const r = options.reduction;
+  const h = r ? `${r.heures} heure${r.heures > 1 ? "s" : ""}` : "";
 
   return envoyer({
     destinataire: options.destinataire,
     sujet: options.acceptee
-      ? `Annulation confirmée — ${quand}`
-      : `Votre cours est maintenu — ${quand}`,
+      ? r
+        ? `Cours raccourci — ${quand}`
+        : `Annulation confirmée — ${quand}`
+      : r
+        ? `Votre cours garde sa durée — ${quand}`
+        : `Votre cours est maintenu — ${quand}`,
     html: gabarit(
-      options.acceptee ? "C'est annulé" : "Le cours est maintenu",
+      options.acceptee
+        ? r
+          ? "C'est raccourci"
+          : "C'est annulé"
+        : r
+          ? "Le cours garde sa durée"
+          : "Le cours est maintenu",
       `<p style="${P}">Bonjour ${options.prenom},</p>
        ${
          options.acceptee
-           ? `<p style="${P}">Votre cours du <strong>${quand}</strong> est annulé.</p>
-              <p style="${P}">${
-                options.facturable
-                  ? "La demande étant arrivée à moins de 24 heures de la séance, celle-ci reste due et figurera sur votre facture."
-                  : "Rien ne vous sera facturé pour cette séance."
-              }</p>`
-           : `<p style="${P}">Je n'ai pas pu accepter l'annulation du cours du
-                <strong>${quand}</strong>. Il reste donc prévu.</p>`
+           ? r
+             ? `<p style="${P}">J'ai retiré ${h} à votre cours.${
+                 r.restantes > 0
+                   ? ` Il commence comme prévu et dure maintenant ${r.restantes} heure${
+                       r.restantes > 1 ? "s" : ""
+                     }.`
+                   : ""
+               }</p>
+                <p style="${P}">${
+                  options.facturable
+                    ? `La demande étant arrivée à moins de 24 heures du cours, ${h} ${
+                        r.heures > 1 ? "restent dues" : "reste due"
+                      } et figurera sur votre facture.`
+                    : `${h} ${r.heures > 1 ? "ne vous seront pas facturées" : "ne vous sera pas facturée"}.`
+                }</p>`
+             : `<p style="${P}">Votre cours du <strong>${quand}</strong> est annulé.</p>
+                <p style="${P}">${
+                  options.facturable
+                    ? "La demande étant arrivée à moins de 24 heures de la séance, celle-ci reste due et figurera sur votre facture."
+                    : "Rien ne vous sera facturé pour cette séance."
+                }</p>`
+           : r
+             ? `<p style="${P}">Je n'ai pas pu retirer ${h} au cours du
+                  <strong>${quand}</strong>. Il garde donc sa durée.</p>`
+             : `<p style="${P}">Je n'ai pas pu accepter l'annulation du cours du
+                  <strong>${quand}</strong>. Il reste donc prévu.</p>`
        }
        ${
          options.reponse

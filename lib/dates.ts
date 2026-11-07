@@ -267,3 +267,48 @@ export function quantieme(jour: string): string {
 export function moisDuJour(jour: string): string {
   return jour.slice(0, 7);
 }
+
+/**
+ * Regroupe des réservations en cours, en conservant leurs identifiants.
+ *
+ * Trois heures qui se suivent sont trois lignes en base — il le faut,
+ * chacune peut être annulée séparément — mais un seul cours pour
+ * l'élève comme pour Pauline. Deux heures ne se rejoignent que si tout
+ * ce qui les distinguerait à l'écran est identique : même statut, même
+ * état de validation, même demande en cours. Sans quoi un bloc
+ * afficherait une seule étiquette pour deux situations différentes.
+ */
+export function regrouperReservations<
+  T extends { id: string; debut: string; fin: string },
+>(reservations: T[], memeNature: (a: T, b: T) => boolean = () => true) {
+  const tries = [...reservations].sort((a, b) => a.debut.localeCompare(b.debut));
+  const blocs: {
+    ids: string[];
+    debut: string;
+    fin: string;
+    heures: number;
+    /** La première heure du bloc : elle porte le sujet, le prix unitaire… */
+    tete: T;
+    lignes: T[];
+  }[] = [];
+
+  for (const r of tries) {
+    const dernier = blocs[blocs.length - 1];
+    if (dernier && dernier.fin === r.debut && memeNature(dernier.tete, r)) {
+      dernier.fin = r.fin;
+      dernier.heures += 1;
+      dernier.ids.push(r.id);
+      dernier.lignes.push(r);
+    } else {
+      blocs.push({
+        ids: [r.id],
+        debut: r.debut,
+        fin: r.fin,
+        heures: 1,
+        tete: r,
+        lignes: [r],
+      });
+    }
+  }
+  return blocs;
+}

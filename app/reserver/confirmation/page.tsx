@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { creneauLong } from "@/lib/dates";
 import { IDENTITE } from "@/lib/constantes";
+import { dossierConnecte } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Demande envoyée" };
 
@@ -12,6 +13,9 @@ export default async function Confirmation({
 }) {
   const { debut, h, attente } = await searchParams;
   const enAttente = attente === "1";
+  // Un élève connecté vient presque toujours de son espace : le renvoyer
+  // à l'accueil l'oblige à retrouver son chemin.
+  const connecte = await dossierConnecte();
   const heures = Math.max(1, Number(h) || 1);
   const quand = debut ? creneauLong(debut) : null;
 
@@ -91,12 +95,25 @@ export default async function Confirmation({
             justifyContent: "center",
           }}
         >
-          <Link href="/" className="bouton bouton--principal">
-            Retour à l&apos;accueil
-          </Link>
-          <a href={IDENTITE.whatsapp} className="bouton bouton--secondaire">
-            Une question ?
-          </a>
+          {connecte ? (
+            <>
+              <Link href="/mon-espace" className="bouton bouton--principal">
+                Retour à mon espace
+              </Link>
+              <Link href="/reserver" className="bouton bouton--secondaire">
+                Réserver une autre heure
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href="/" className="bouton bouton--principal">
+                Retour à l&apos;accueil
+              </Link>
+              <a href={IDENTITE.whatsapp} className="bouton bouton--secondaire">
+                Une question ?
+              </a>
+            </>
+          )}
         </div>
       </div>
     </section>

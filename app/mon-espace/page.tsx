@@ -5,7 +5,12 @@ import { dossierConnecte } from "@/lib/session";
 import { clientAdmin } from "@/lib/supabase";
 import { seDeconnecter } from "@/app/compte/actions";
 import DemandeAnnulation from "./DemandeAnnulation";
-import { creneauLong, moisLong } from "@/lib/dates";
+import {
+  creneauLong,
+  blocLong,
+  moisLong,
+  regrouperReservations,
+} from "@/lib/dates";
 import { euros } from "@/lib/constantes";
 
 export const metadata: Metadata = { title: "Mon espace" };
@@ -17,8 +22,10 @@ type Ligne = {
   statut: string;
   sujet: string | null;
   lien_visio: string | null;
+  fin: string;
   prix_cents: number;
   validee_le: string | null;
+  demande_type: string | null;
   refus_motif: string | null;
   annulation_demandee_le: string | null;
   annulation_traitee_le: string | null;
@@ -63,7 +70,7 @@ export default async function MonEspace() {
     supabase
       .from("reservations")
       .select(
-        "id, debut, statut, sujet, lien_visio, prix_cents, validee_le, refus_motif, annulation_demandee_le, annulation_traitee_le, annulation_decision, annulation_reponse"
+        "id, debut, fin, statut, sujet, lien_visio, prix_cents, validee_le, demande_type, refus_motif, annulation_demandee_le, annulation_traitee_le, annulation_decision, annulation_reponse"
       )
       .eq("dossier_id", dossier.id)
       .order("debut", { ascending: false }),
@@ -89,10 +96,23 @@ export default async function MonEspace() {
   const delaiAnnulation = reglages?.delai_annulation_h ?? 24;
   const toutes = (data ?? []) as Ligne[];
   const maintenant = new Date().toISOString();
-  const aVenir = toutes
-    .filter((r) => r.debut >= maintenant && r.statut === "reservee")
-    .reverse();
+  const aVenir = toutes.filter(
+    (r) => r.debut >= maintenant && r.statut === "reservee"
+  );
   const passees = toutes.filter((r) => !(r.debut >= maintenant && r.statut === "reservee"));
+
+  // Trois heures qui se suivent sont trois lignes en base, et un seul
+  // cours pour l'élève. On ne les réunit que si leur situation est la
+  // même : une heure annulée au milieu d'un bloc doit rester visible.
+  const memeNature = (a: Ligne, b: Ligne) =>
+    a.statut === b.statut &&
+    !a.validee_le === !b.validee_le &&
+    !a.annulation_demandee_le === !b.annulation_demandee_le &&
+    !a.annulation_traitee_le === !b.annulation_traitee_le;
+
+  const blocsAVenir = regrouperReservations(aVenir, memeNature);
+  const blocsPassees = regrouperReservations(passees, memeNature).reverse();
+
 
   return (
     <section className="section">
@@ -137,11 +157,22 @@ export default async function MonEspace() {
               rien à remplir.
             </Vide>
           ) : (
-            aVenir.map((r) => (
+            blocsAVenir.map((bloc) => {
+              const r = bloc.tete;
+              return (
               <article key={r.id} className="cours">
                 <div>
-                  <p className="cours__quand">{creneauLong(r.debut)}</p>
-                  {r.sujet ? <p className="cours__sujet">{r.sujet}</p> : null}
+                  <p className="cours__quand">
+                    {bloc.heures > 1 ? blocLong(bloc) : creneauLong(r.debut)}
+                  </p>
+                  {bloc.heures > 1 ? (
+                    <p className="cours__sujet">
+                      {bloc.heures} heures d&apos;affilée
+                      {r.sujet ? ` · ${r.sujet}` : ""}
+                    </p>
+                  ) : r.sujet ? (
+                    <p className="cours__sujet">{r.sujet}</p>
+                  ) : null}
                 </div>
                 <div style={{ textAlign: "right", minWidth: 0 }}>
                   <span
@@ -165,11 +196,14 @@ export default async function MonEspace() {
 
                   {r.annulation_demandee_le && !r.annulation_traitee_le ? (
                     <p className="annulation__etat">
-                      Annulation demandée. Pauline vous répond par email.
+                      {r.demande_type === "reduction"
+                        ? "Réduction demandée. Pauline vous répond par email."
+                        : "Annulation demandée. Pauline vous répond par email."}
                     </p>
                   ) : (
                     <DemandeAnnulation
-                      id={r.id}
+                      ids={bloc.ids}
+                      heures={bloc.heures}
                       enAttente={!r.validee_le}
                       dansLesDelais={
                         Date.parse(r.debut) - Date.now() >
@@ -179,7 +213,8 @@ export default async function MonEspace() {
                   )}
                 </div>
               </article>
-            ))
+              );
+            })
           )}
         </Bloc>
 
@@ -190,11 +225,21 @@ export default async function MonEspace() {
               échangés.
             </Vide>
           ) : (
-            passees.map((r) => (
+            blocsPassees.map((bloc) => {
+              const r = bloc.tete;
+              return (
               <article key={r.id} className="cours">
                 <div>
-                  <p className="cours__quand">{creneauLong(r.debut)}</p>
-                  {r.sujet ? <p className="cours__sujet">{r.sujet}</p> : null}
+                  <p className="cours__quand">
+                    {bloc.heures > 1 ? blocLong(bloc) : creneauLong(r.debut)}
+                  </p>
+                  {bloc.heures > 1 ? (
+                    <p className="cours__sujet">
+                      {bloc.heures} heures{r.sujet ? ` · ${r.sujet}` : ""}
+                    </p>
+                  ) : r.sujet ? (
+                    <p className="cours__sujet">{r.sujet}</p>
+                  ) : null}
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <span className="etiquette">{libelleStatut(r, maintenant)}</span>
@@ -202,12 +247,15 @@ export default async function MonEspace() {
                     <p className="cours__note">{r.refus_motif}</p>
                   ) : (
                     <p className="cours__note">
-                      {r.validee_le ? euros(r.prix_cents) : "Non facturé"}
+                      {r.validee_le
+                        ? euros(bloc.lignes.reduce((t, l) => t + l.prix_cents, 0))
+                        : "Non facturé"}
                     </p>
                   )}
                 </div>
               </article>
-            ))
+              );
+            })
           )}
         </Bloc>
 

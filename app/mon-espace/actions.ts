@@ -10,6 +10,8 @@ export type EtatAnnulation = {
   ok: boolean;
   /** Vrai quand la demande a été retirée d'elle-même, sans décision de Pauline. */
   retiree?: boolean;
+  /** Vrai pour un raccourcissement, faux pour une annulation complète. */
+  reduction?: boolean;
 };
 
 /**
@@ -18,6 +20,10 @@ export type EtatAnnulation = {
  * Le créneau reste occupé jusqu'à la réponse de Pauline : une simple
  * demande ne doit pas libérer l'agenda, sinon il suffirait de demander
  * en boucle pour le vider.
+ *
+ * Réduire un cours de trois heures à une, c'est annuler les deux
+ * dernières. Le formulaire envoie donc les heures du bloc et le nombre
+ * à garder ; tout le reste est le mécanisme d'annulation, inchangé.
  */
 export async function demanderAnnulation(
   _etat: EtatAnnulation,
@@ -26,41 +32,55 @@ export async function demanderAnnulation(
   const dossier = await dossierConnecte();
   if (!dossier) return { ok: false, erreur: "Connectez-vous pour faire cette demande." };
 
-  const id = String(formulaire.get("id") ?? "");
+  const ids = String(formulaire.get("ids") ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+  const garder = Math.max(0, Number(formulaire.get("garder") ?? 0) || 0);
   const motif = String(formulaire.get("motif") ?? "").trim().slice(0, 500) || null;
-  if (!id) return { ok: false, erreur: "Cours introuvable." };
+
+  if (ids.length === 0) return { ok: false, erreur: "Cours introuvable." };
+  if (garder >= ids.length) {
+    return { ok: false, erreur: "Choisissez un nombre d'heures inférieur." };
+  }
 
   const supabase = clientAdmin();
 
-  const { data: cours } = await supabase
+  const { data: lignes } = await supabase
     .from("reservations")
     .select(
-      "id, debut, statut, validee_le, annulation_demandee_le, annulation_traitee_le"
+      "id, debut, fin, statut, validee_le, annulation_demandee_le, annulation_traitee_le"
     )
-    .eq("id", id)
+    .in("id", ids)
     .eq("dossier_id", dossier.id)
-    .maybeSingle();
+    .order("debut");
 
-  if (!cours) return { ok: false, erreur: "Cours introuvable." };
-  if (cours.statut !== "reservee") {
+  const cours = lignes ?? [];
+  if (cours.length !== ids.length) return { ok: false, erreur: "Cours introuvable." };
+  if (cours.some((c) => c.statut !== "reservee")) {
     return { ok: false, erreur: "Ce cours n'est plus modifiable." };
   }
-  if (cours.debut < new Date().toISOString()) {
+  if (cours[0].debut < new Date().toISOString()) {
     return { ok: false, erreur: "Ce cours est passé. Écrivez-moi directement." };
   }
-  if (cours.annulation_demandee_le && !cours.annulation_traitee_le) {
+  if (cours.some((c) => c.annulation_demandee_le && !c.annulation_traitee_le)) {
     return { ok: false, erreur: "Une demande est déjà en attente pour ce cours." };
   }
 
+  // On garde les premières heures, on retire les dernières : c'est la
+  // fin d'un cours qu'on raccourcit, pas son début.
+  const retirees = cours.slice(garder);
+  const reduction = garder > 0;
   const maintenant = new Date().toISOString();
+  const idsRetires = retirees.map((r) => r.id);
 
   // Une demande que Pauline n'a pas encore acceptée se retire sans
   // rien demander à personne : il n'y a pas d'accord à défaire.
-  if (!cours.validee_le) {
+  if (!cours[0].validee_le) {
     const { error: erreurRetrait } = await supabase
       .from("reservations")
       .update({ statut: "annulee_dans_delai", annulation_motif: motif })
-      .eq("id", id)
+      .in("id", idsRetires)
       .eq("dossier_id", dossier.id);
 
     if (erreurRetrait) {
@@ -72,16 +92,16 @@ export async function demanderAnnulation(
       acteur: "client",
       dossier_id: dossier.id,
       objet: "reservation",
-      objet_id: id,
+      objet_id: idsRetires[0],
       action: "demande_retiree",
-      details: { motif },
+      details: { motif, heures: idsRetires.length, reduction },
     });
 
     revalidatePath("/mon-espace");
     revalidatePath("/admin");
     revalidatePath("/reserver");
 
-    return { ok: true, erreur: null, retiree: true };
+    return { ok: true, erreur: null, retiree: true, reduction };
   }
 
   const { error } = await supabase
@@ -92,8 +112,9 @@ export async function demanderAnnulation(
       annulation_decision: null,
       annulation_reponse: null,
       annulation_traitee_le: null,
+      demande_type: reduction ? "reduction" : "annulation",
     })
-    .eq("id", id)
+    .in("id", idsRetires)
     .eq("dossier_id", dossier.id);
 
   if (error) {
@@ -108,7 +129,7 @@ export async function demanderAnnulation(
     .maybeSingle();
 
   const limite = new Date(
-    Date.parse(cours.debut) - (p?.delai_annulation_h ?? 24) * 3600 * 1000
+    Date.parse(retirees[0].debut) - (p?.delai_annulation_h ?? 24) * 3600 * 1000
   ).toISOString();
 
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com";
@@ -116,23 +137,32 @@ export async function demanderAnnulation(
   const resultat = await demandeAnnulation({
     prenomClient: `${dossier.prenom ?? ""} ${dossier.nom ?? ""}`.trim(),
     eleve: dossier.eleve_prenom ?? "",
-    debut: cours.debut,
+    debut: retirees[0].debut,
     motif,
     horsDelai: maintenant > limite,
     lien: `${site}/admin`,
+    reduction: reduction
+      ? { avant: cours.length, apres: garder, debutCours: cours[0].debut }
+      : null,
   });
 
   await supabase.from("journal").insert({
     acteur: "client",
     dossier_id: dossier.id,
     objet: "reservation",
-    objet_id: id,
-    action: "annulation_demandee",
-    details: { motif, hors_delai: maintenant > limite, email: resultat.detail },
+    objet_id: idsRetires[0],
+    action: reduction ? "reduction_demandee" : "annulation_demandee",
+    details: {
+      motif,
+      hors_delai: maintenant > limite,
+      heures: idsRetires.length,
+      ...(reduction ? { de: cours.length, a: garder } : {}),
+      email: resultat.detail,
+    },
   });
 
   revalidatePath("/mon-espace");
   revalidatePath("/admin");
 
-  return { ok: true, erreur: null };
+  return { ok: true, erreur: null, reduction };
 }

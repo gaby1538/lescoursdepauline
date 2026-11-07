@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { clientAdmin } from "@/lib/supabase";
-import { creneauLong, blocLong } from "@/lib/dates";
+import { creneauLong, blocLong, regrouperReservations } from "@/lib/dates";
 import {
   marquerEffectue,
   annulerCours,
@@ -66,7 +66,7 @@ export default async function TableauDeBord({
     supabase
       .from("reservations")
       .select(
-        "id, dossier_id, debut, annulation_demandee_le, annulation_motif, dossiers (prenom, nom, eleve_prenom, eleve_classe)"
+        "id, dossier_id, debut, fin, demande_type, annulation_demandee_le, annulation_motif, dossiers (prenom, nom, eleve_prenom, eleve_classe)"
       )
       .eq("statut", "reservee")
       .not("annulation_demandee_le", "is", null)
@@ -122,11 +122,19 @@ export default async function TableauDeBord({
   const enAttente = (aValider.data ?? []) as unknown as (Prochain & {
     dossier_id: string;
   })[];
-  const aTrancher = (demandes.data ?? []) as unknown as (Prochain & {
+  type Trancher = Prochain & {
     dossier_id: string;
+    fin: string;
+    demande_type: string | null;
     annulation_demandee_le: string;
     annulation_motif: string | null;
-  })[];
+  };
+  // Une réduction porte sur plusieurs heures d'un coup : les présenter
+  // séparément ferait croire à plusieurs demandes.
+  const aTrancher = regrouperReservations(
+    (demandes.data ?? []) as unknown as Trancher[],
+    (a, b) => a.dossier_id === b.dossier_id && a.demande_type === b.demande_type
+  );
   // Trois heures qui se suivent sont un seul cours : on les présente
   // comme un bloc, et une seule décision les tranche.
   type Demande = Prochain & {
@@ -342,7 +350,9 @@ export default async function TableauDeBord({
             </p>
 
             <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
-              {aTrancher.map((r) => {
+              {aTrancher.map((bloc) => {
+                const r = bloc.tete;
+                const reduction = r.demande_type === "reduction";
                 const horsDelai =
                   Date.parse(r.debut) - Date.parse(r.annulation_demandee_le) <
                   delaiAnnulation * 3600 * 1000;
@@ -364,14 +374,32 @@ export default async function TableauDeBord({
                           color: "var(--foret)",
                         }}
                       >
-                        {creneauLong(r.debut)}
+                        {bloc.heures > 1 ? blocLong(bloc) : creneauLong(r.debut)}
                       </p>
                       <span className="etiquette">
-                        {horsDelai ? "Hors délai — resterait facturable" : "Dans les délais"}
+                        {horsDelai
+                          ? "Hors délai — resterait facturable"
+                          : "Dans les délais"}
                       </span>
                     </div>
 
-                    <p style={{ marginTop: 8, fontSize: 14.5, color: "var(--texte-doux)" }}>
+                    <p
+                      style={{
+                        marginTop: 8,
+                        fontSize: 14.5,
+                        color: "var(--texte-doux)",
+                      }}
+                    >
+                      <strong style={{ color: "var(--foret)" }}>
+                        {reduction
+                          ? `Veut retirer ${bloc.heures} heure${
+                              bloc.heures > 1 ? "s" : ""
+                            } de ce cours`
+                          : bloc.heures > 1
+                            ? `Veut annuler les ${bloc.heures} heures`
+                            : "Veut annuler ce cours"}
+                      </strong>
+                      <br />
                       {r.dossiers?.eleve_prenom ?? "—"}
                       {r.dossiers?.eleve_classe ? ` · ${r.dossiers.eleve_classe}` : ""} —
                       demandé par {r.dossiers?.prenom} {r.dossiers?.nom}
@@ -393,7 +421,7 @@ export default async function TableauDeBord({
                     ) : null}
 
                     <form style={{ marginTop: 14 }}>
-                      <input type="hidden" name="id" value={r.id} />
+                      <input type="hidden" name="ids" value={bloc.ids.join(",")} />
                       <input type="hidden" name="retour" value="/admin" />
                       <label htmlFor={`rep-${r.id}`} style={etiquette}>
                         Votre réponse (facultative, transmise à l&apos;élève)
