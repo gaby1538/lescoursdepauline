@@ -9,30 +9,38 @@ const initial: EtatAnnulation = { erreur: null, ok: false };
 export default function DemandeAnnulation({
   id,
   dansLesDelais,
+  enAttente = false,
 }: {
   id: string;
   dansLesDelais: boolean;
+  /** La demande n'a pas encore été acceptée : elle se retire librement. */
+  enAttente?: boolean;
 }) {
   const [etat, action, enCours] = useActionState(demanderAnnulation, initial);
 
   if (etat.ok) {
     return (
       <p className="annulation__etat">
-        Demande envoyée. Pauline vous répond par email, et le cours reste prévu
-        jusque-là.
+        {etat.retiree
+          ? "Demande retirée. Le créneau est de nouveau libre."
+          : "Demande envoyée. Pauline vous répond par email, et le cours reste prévu jusque-là."}
       </p>
     );
   }
 
   return (
     <details className="annulation">
-      <summary>Demander l&apos;annulation</summary>
+      <summary>
+        {enAttente ? "Retirer ma demande" : "Demander l'annulation"}
+      </summary>
       <form action={action} className="annulation__corps">
         <input type="hidden" name="id" value={id} />
         <p className="annulation__avis">
-          {dansLesDelais
-            ? "Vous êtes dans les délais : acceptée, cette séance ne vous sera pas facturée."
-            : "Il reste moins de 24 heures avant le cours. Pauline peut accepter, mais la séance restera due."}
+          {enAttente
+            ? "Pauline n'a pas encore répondu : le retrait est immédiat et rien ne vous sera facturé."
+            : dansLesDelais
+              ? "Vous êtes dans les délais : acceptée, cette séance ne vous sera pas facturée."
+              : "Il reste moins de 24 heures avant le cours. Pauline peut accepter, mais la séance restera due."}
         </p>
         <label htmlFor={`motif-${id}`} className="annulation__etiquette">
           Un mot pour expliquer ? (facultatif)
@@ -55,7 +63,7 @@ export default function DemandeAnnulation({
           className="bouton bouton--secondaire bouton--compact"
           style={{ marginTop: 12 }}
         >
-          {enCours ? "Envoi…" : "Envoyer la demande"}
+          {enCours ? "Envoi…" : enAttente ? "Retirer ma demande" : "Envoyer la demande"}
         </button>
       </form>
     </details>

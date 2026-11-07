@@ -18,6 +18,8 @@ type Ligne = {
   sujet: string | null;
   lien_visio: string | null;
   prix_cents: number;
+  validee_le: string | null;
+  refus_motif: string | null;
   annulation_demandee_le: string | null;
   annulation_traitee_le: string | null;
   annulation_decision: string | null;
@@ -39,7 +41,15 @@ const LIBELLE_STATUT: Record<string, string> = {
  * serait faux ; on dit ce qui est vrai pour l'élève.
  */
 function libelleStatut(ligne: Ligne, maintenant: string): string {
+  if (ligne.statut === "reservee" && !ligne.validee_le) {
+    return "En attente de validation";
+  }
   if (ligne.statut === "reservee" && ligne.debut < maintenant) return "Séance passée";
+  // Une demande refusée n'a jamais été un cours : le dire autrement
+  // qu'« annulé par Pauline », qui laisserait croire à un désistement.
+  if (ligne.statut === "annulee_par_pauline" && !ligne.validee_le) {
+    return "Demande refusée";
+  }
   return LIBELLE_STATUT[ligne.statut] ?? ligne.statut;
 }
 
@@ -53,7 +63,7 @@ export default async function MonEspace() {
     supabase
       .from("reservations")
       .select(
-        "id, debut, statut, sujet, lien_visio, prix_cents, annulation_demandee_le, annulation_traitee_le, annulation_decision, annulation_reponse"
+        "id, debut, statut, sujet, lien_visio, prix_cents, validee_le, refus_motif, annulation_demandee_le, annulation_traitee_le, annulation_decision, annulation_reponse"
       )
       .eq("dossier_id", dossier.id)
       .order("debut", { ascending: false }),
@@ -134,8 +144,18 @@ export default async function MonEspace() {
                   {r.sujet ? <p className="cours__sujet">{r.sujet}</p> : null}
                 </div>
                 <div style={{ textAlign: "right", minWidth: 0 }}>
-                  <span className="etiquette">{libelleStatut(r, maintenant)}</span>
-                  {r.lien_visio ? (
+                  <span
+                    className={
+                      r.validee_le ? "etiquette" : "etiquette etiquette--attente"
+                    }
+                  >
+                    {libelleStatut(r, maintenant)}
+                  </span>
+                  {!r.validee_le ? (
+                    <p className="cours__note">
+                      Créneau gardé le temps que Pauline réponde
+                    </p>
+                  ) : r.lien_visio ? (
                     <p style={{ marginTop: 8 }}>
                       <a href={r.lien_visio}>Rejoindre</a>
                     </p>
@@ -150,6 +170,7 @@ export default async function MonEspace() {
                   ) : (
                     <DemandeAnnulation
                       id={r.id}
+                      enAttente={!r.validee_le}
                       dansLesDelais={
                         Date.parse(r.debut) - Date.now() >
                         delaiAnnulation * 3600 * 1000
@@ -177,7 +198,13 @@ export default async function MonEspace() {
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <span className="etiquette">{libelleStatut(r, maintenant)}</span>
-                  <p className="cours__note">{euros(r.prix_cents)}</p>
+                  {r.refus_motif ? (
+                    <p className="cours__note">{r.refus_motif}</p>
+                  ) : (
+                    <p className="cours__note">
+                      {r.validee_le ? euros(r.prix_cents) : "Non facturé"}
+                    </p>
+                  )}
                 </div>
               </article>
             ))

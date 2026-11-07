@@ -16,6 +16,10 @@ const ACTEURS: Record<string, string> = {
 /** Ce que chaque entrée veut dire, en français. */
 const LIBELLES: Record<string, string> = {
   "reservation:creee": "Cours réservé",
+  "reservation:demandee": "Cours demandé",
+  "reservation:demande_acceptee": "Demande acceptée",
+  "reservation:demande_refusee": "Demande refusée",
+  "reservation:demande_retiree": "Demande retirée par l'élève",
   "reservation:annulation_demandee": "Annulation demandée",
   "reservation:annulation_acceptee": "Annulation acceptée",
   "reservation:annulation_refusee": "Annulation refusée",

@@ -3,23 +3,36 @@ import Link from "next/link";
 import { creneauLong } from "@/lib/dates";
 import { IDENTITE } from "@/lib/constantes";
 
-export const metadata: Metadata = { title: "Réservation confirmée" };
+export const metadata: Metadata = { title: "Demande envoyée" };
 
 export default async function Confirmation({
   searchParams,
 }: {
-  searchParams: Promise<{ debut?: string; h?: string }>;
+  searchParams: Promise<{ debut?: string; h?: string; attente?: string }>;
 }) {
-  const { debut, h } = await searchParams;
+  const { debut, h, attente } = await searchParams;
+  const enAttente = attente === "1";
   const heures = Math.max(1, Number(h) || 1);
   const quand = debut ? creneauLong(debut) : null;
 
   return (
     <section className="section">
       <div className="conteneur-etroit" style={{ textAlign: "center" }}>
-        <p className="surtitre">C&apos;est noté</p>
+        <p className="surtitre">
+          {enAttente ? "Demande envoyée" : "C'est noté"}
+        </p>
         <h1 style={{ fontSize: 46, lineHeight: 1.1 }}>
-          {heures > 1 ? (
+          {enAttente ? (
+            heures > 1 ? (
+              <>
+                Vos {heures} heures sont <em className="accent">demandées</em>
+              </>
+            ) : (
+              <>
+                Votre demande est <em className="accent">envoyée</em>
+              </>
+            )
+          ) : heures > 1 ? (
             <>
               Vos {heures} heures sont <em className="accent">réservées</em>
             </>
@@ -43,17 +56,31 @@ export default async function Confirmation({
         )}
         {heures > 1 && (
           <p style={{ marginTop: 10, fontSize: 15, color: "var(--texte-gris)" }}>
-            Le détail de chaque heure figure dans l&apos;email de confirmation.
+            Le détail de chaque heure figure dans l&apos;email que vous venez de
+            recevoir.
+          </p>
+        )}
+        {enAttente && (
+          <p
+            className="plomb"
+            style={{ margin: "22px auto 0", maxWidth: 520, fontWeight: 600 }}
+          >
+            Pauline confirme chaque cours elle-même, en général dans la journée. Le
+            créneau vous est gardé jusque-là, et vous recevrez un email dès qu&apos;elle
+            aura répondu.
           </p>
         )}
         <p className="plomb" style={{ margin: "22px auto 0", maxWidth: 520 }}>
-          Un email de confirmation vient de partir. S&apos;il s&apos;agit de votre
-          premier cours, il contient un lien qui confirme votre adresse et crée votre
-          espace : un clic, un mot de passe, et vos coordonnées sont retenues pour
-          toutes vos prochaines réservations.
+          Un email vient de partir. S&apos;il s&apos;agit de votre premier cours, il
+          contient un lien qui confirme votre adresse et crée votre espace : un clic,
+          un mot de passe, et vos coordonnées sont retenues pour toutes vos prochaines
+          réservations.
         </p>
         <p className="plomb" style={{ margin: "16px auto 0", maxWidth: 520 }}>
-          Rien à régler maintenant. La facture arrivera en fin de mois.
+          Rien à régler maintenant.{" "}
+          {enAttente
+            ? "Rien ne vous sera facturé si Pauline ne peut pas assurer le cours."
+            : "La facture arrivera en fin de mois."}
         </p>
         <div
           style={{

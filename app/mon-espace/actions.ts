@@ -5,7 +5,12 @@ import { clientAdmin } from "@/lib/supabase";
 import { dossierConnecte } from "@/lib/session";
 import { demandeAnnulation } from "@/lib/emails";
 
-export type EtatAnnulation = { erreur: string | null; ok: boolean };
+export type EtatAnnulation = {
+  erreur: string | null;
+  ok: boolean;
+  /** Vrai quand la demande a été retirée d'elle-même, sans décision de Pauline. */
+  retiree?: boolean;
+};
 
 /**
  * L'élève demande, il n'annule pas.
@@ -29,7 +34,9 @@ export async function demanderAnnulation(
 
   const { data: cours } = await supabase
     .from("reservations")
-    .select("id, debut, statut, annulation_demandee_le, annulation_traitee_le")
+    .select(
+      "id, debut, statut, validee_le, annulation_demandee_le, annulation_traitee_le"
+    )
     .eq("id", id)
     .eq("dossier_id", dossier.id)
     .maybeSingle();
@@ -46,6 +53,36 @@ export async function demanderAnnulation(
   }
 
   const maintenant = new Date().toISOString();
+
+  // Une demande que Pauline n'a pas encore acceptée se retire sans
+  // rien demander à personne : il n'y a pas d'accord à défaire.
+  if (!cours.validee_le) {
+    const { error: erreurRetrait } = await supabase
+      .from("reservations")
+      .update({ statut: "annulee_dans_delai", annulation_motif: motif })
+      .eq("id", id)
+      .eq("dossier_id", dossier.id);
+
+    if (erreurRetrait) {
+      console.error("retrait de demande", erreurRetrait);
+      return { ok: false, erreur: "Le retrait n'a pas pu être enregistré. Réessayez." };
+    }
+
+    await supabase.from("journal").insert({
+      acteur: "client",
+      dossier_id: dossier.id,
+      objet: "reservation",
+      objet_id: id,
+      action: "demande_retiree",
+      details: { motif },
+    });
+
+    revalidatePath("/mon-espace");
+    revalidatePath("/admin");
+    revalidatePath("/reserver");
+
+    return { ok: true, erreur: null, retiree: true };
+  }
 
   const { error } = await supabase
     .from("reservations")

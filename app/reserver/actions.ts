@@ -141,10 +141,26 @@ export async function reserver(
 
   // Les heures partent en une seule instruction : la base les accepte
   // toutes ou n'en garde aucune. Pas de demi-réservation à rattraper.
+  const { data: reglages } = await supabase
+    .from("parametres")
+    .select("validation_requise")
+    .eq("id", true)
+    .maybeSingle();
+
+  // Par défaut la demande attend l'accord de Pauline. Le créneau est pris
+  // dès maintenant : personne ne double la file pendant qu'elle réfléchit.
+  const enAttente = reglages?.validation_requise ?? true;
+
   const { error: erreurResa } = await supabase
     .from("reservations")
     .insert(
-      creneaux.map((c) => ({ dossier_id: dossierId, debut: c.debut, fin: c.fin, sujet }))
+      creneaux.map((c) => ({
+        dossier_id: dossierId,
+        debut: c.debut,
+        fin: c.fin,
+        sujet,
+        validee_le: enAttente ? null : new Date().toISOString(),
+      }))
     );
 
   if (erreurResa) {
@@ -159,7 +175,7 @@ export async function reserver(
     acteur: "client",
     dossier_id: dossierId,
     objet: "reservation",
-    action: "creee",
+    action: enAttente ? "demandee" : "creee",
     details: {
       creneaux: creneaux.map((c) => c.debut),
       heures: creneaux.length,
@@ -185,6 +201,7 @@ export async function reserver(
       creneaux,
       lienVisio: null,
       lienConfirmation,
+      enAttente,
     }),
     alerteNouvelleReservation({
       prenomClient: prenom,
@@ -195,6 +212,7 @@ export async function reserver(
       creneaux,
       sujet,
       premiere,
+      enAttente,
     }),
       ])
     : [
@@ -215,6 +233,8 @@ export async function reserver(
   });
 
   redirect(
-    `/reserver/confirmation?debut=${encodeURIComponent(debut)}&h=${creneaux.length}`
+    `/reserver/confirmation?debut=${encodeURIComponent(debut)}&h=${creneaux.length}${
+      enAttente ? "&attente=1" : ""
+    }`
   );
 }

@@ -28,18 +28,19 @@ export default async function Eleves() {
       )
       .eq("anonymise", false)
       .order("cree_le", { ascending: false }),
-    supabase.from("reservations").select("dossier_id, statut, debut"),
+    supabase.from("reservations").select("dossier_id, statut, debut, validee_le"),
     supabase.from("liste_noire").select("id, email_normalise, telephone, motif, cree_le"),
   ]);
 
   const liste = (dossiers.data ?? []) as Dossier[];
   const maintenant = new Date().toISOString();
 
-  const compte = new Map<string, { total: number; aVenir: number }>();
+  const compte = new Map<string, { total: number; aVenir: number; attente: number }>();
   for (const r of reservations.data ?? []) {
-    const c = compte.get(r.dossier_id) ?? { total: 0, aVenir: 0 };
+    const c = compte.get(r.dossier_id) ?? { total: 0, aVenir: 0, attente: 0 };
     c.total += 1;
-    if (r.statut === "reservee" && r.debut >= maintenant) c.aVenir += 1;
+    if (r.statut === "reservee" && !r.validee_le) c.attente += 1;
+    else if (r.statut === "reservee" && r.debut >= maintenant) c.aVenir += 1;
     compte.set(r.dossier_id, c);
   }
 
@@ -74,7 +75,7 @@ export default async function Eleves() {
               </thead>
               <tbody>
                 {liste.map((d) => {
-                  const c = compte.get(d.id) ?? { total: 0, aVenir: 0 };
+                  const c = compte.get(d.id) ?? { total: 0, aVenir: 0, attente: 0 };
                   return (
                     <tr key={d.id}>
                       <td>
@@ -108,10 +109,24 @@ export default async function Eleves() {
                       </td>
                       <td className="droite">
                         {c.total}
+                        {c.attente > 0 ? (
+                          <>
+                            <br />
+                            <span
+                              style={{
+                                fontSize: 13,
+                                color: "var(--or-texte)",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {c.attente} à valider
+                            </span>
+                          </>
+                        ) : null}
                         {c.aVenir > 0 ? (
                           <>
                             <br />
-                            <span style={{ fontSize: 13, color: "var(--or-texte)" }}>
+                            <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
                               {c.aVenir} à venir
                             </span>
                           </>

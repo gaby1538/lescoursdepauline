@@ -156,20 +156,36 @@ function resumeCourt(creneaux: Creneau[]): string {
   )}`;
 }
 
+/**
+ * Les textes saisis à la main finissent dans du HTML : on les échappe,
+ * sans quoi une apostrophe typographique passe mais un « < » casse la
+ * mise en page de l'email.
+ */
+function echapper(texte: string): string {
+  return texte
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 export async function confirmationReservation(options: {
   destinataire: string;
   prenom: string;
   creneaux: Creneau[];
   lienVisio: string | null;
   lienConfirmation: string | null;
+  enAttente: boolean;
 }): Promise<ResultatEnvoi> {
   const plusieurs = options.creneaux.length > 1;
   const quand = resumeCourt(options.creneaux);
 
-  const blocVisio = options.lienVisio
-    ? `<p style="${P}">Le lien pour nous retrouver :<br>
-         <a href="${options.lienVisio}" style="color:#8a5e0c;">${options.lienVisio}</a></p>`
-    : `<p style="${P}">Je vous enverrai le lien de connexion avant la séance.</p>`;
+  const blocVisio = options.enAttente
+    ? ""
+    : options.lienVisio
+      ? `<p style="${P}">Le lien pour nous retrouver :<br>
+           <a href="${options.lienVisio}" style="color:#8a5e0c;">${options.lienVisio}</a></p>`
+      : `<p style="${P}">Je vous enverrai le lien de connexion avant la séance.</p>`;
 
   const blocConfirmation = options.lienConfirmation
     ? `<hr style="border:none;border-top:1px solid #ede7d9;margin:28px 0;">
@@ -186,22 +202,39 @@ export async function confirmationReservation(options: {
 
   return envoyer({
     destinataire: options.destinataire,
-    sujet: plusieurs ? `Vos cours de SVT — ${quand}` : `Votre cours de SVT — ${quand}`,
+    sujet: options.enAttente
+      ? plusieurs
+        ? `Votre demande de cours — ${quand}`
+        : `Votre demande de cours — ${quand}`
+      : plusieurs
+        ? `Vos cours de SVT — ${quand}`
+        : `Votre cours de SVT — ${quand}`,
     html: gabarit(
-      "C'est noté",
+      options.enAttente ? "J'ai bien reçu votre demande" : "C'est noté",
       `<p style="${P}">Bonjour ${options.prenom},</p>
        <p style="${P}">${
-         plusieurs
-           ? "Vos heures sont réservées, en visioconférence :"
-           : "Votre cours est réservé, en visioconférence, pour une heure :"
+         options.enAttente
+           ? plusieurs
+             ? "J'ai bien reçu votre demande pour ces heures :"
+             : "J'ai bien reçu votre demande pour ce créneau :"
+           : plusieurs
+             ? "Vos heures sont réservées, en visioconférence :"
+             : "Votre cours est réservé, en visioconférence, pour une heure :"
        }</p>
        ${listeCreneaux(options.creneaux)}
        ${blocVisio}
-       <p style="${P}">Vous pouvez annuler ou déplacer jusqu'à 24 heures avant
-         ${plusieurs ? "chaque séance" : "la séance"}, sans frais. Au-delà, la séance
-         est due.</p>
-       <p style="${P}">Il n'y a rien à régler maintenant : je vous enverrai une
-         facture en fin de mois.</p>
+       ${
+         options.enAttente
+           ? `<p style="${P}">Le créneau vous est gardé le temps que je vous réponde.
+                Je confirme en général dans la journée, et vous recevrez un email dès
+                que ce sera fait. Rien n'est définitif avant cette réponse, et rien ne
+                vous sera facturé si je ne peux pas assurer le cours.</p>`
+           : `<p style="${P}">Vous pouvez annuler ou déplacer jusqu'à 24 heures avant
+                ${plusieurs ? "chaque séance" : "la séance"}, sans frais. Au-delà, la
+                séance est due.</p>
+              <p style="${P}">Il n'y a rien à régler maintenant : je vous enverrai une
+                facture en fin de mois.</p>`
+       }
        ${blocConfirmation}
        <p style="${P}">À bientôt,<br>Pauline</p>`
     ),
@@ -217,14 +250,27 @@ export async function alerteNouvelleReservation(options: {
   creneaux: Creneau[];
   sujet: string | null;
   premiere: boolean;
+  enAttente: boolean;
 }): Promise<ResultatEnvoi> {
   return envoyer({
     destinataire: IDENTITE.email,
-    sujet: `${options.premiere ? "Nouvel élève" : "Réservation"} — ${resumeCourt(
-      options.creneaux
-    )}`,
+    sujet: `${
+      options.enAttente
+        ? options.premiere
+          ? "Demande d'un nouvel élève"
+          : "Demande de cours"
+        : options.premiere
+          ? "Nouvel élève"
+          : "Réservation"
+    } — ${resumeCourt(options.creneaux)}`,
     html: gabarit(
-      options.premiere ? "Un nouvel élève a réservé" : "Nouvelle réservation",
+      options.enAttente
+        ? options.premiere
+          ? "Un nouvel élève demande un cours"
+          : "Une demande attend votre réponse"
+        : options.premiere
+          ? "Un nouvel élève a réservé"
+          : "Nouvelle réservation",
       `${listeCreneaux(options.creneaux)}
        <p style="${P}">
          ${options.prenomClient} ${options.nomClient} — ${options.emailClient}<br>
@@ -232,7 +278,9 @@ export async function alerteNouvelleReservation(options: {
        </p>
        ${
          options.sujet
-           ? `<p style="${P}">Ce qu'il souhaite travailler :<br><em>${options.sujet}</em></p>`
+           ? `<p style="${P}">Ce qu'il souhaite travailler :<br><em>${echapper(
+               options.sujet
+             )}</em></p>`
            : ""
        }
        ${
@@ -240,6 +288,13 @@ export async function alerteNouvelleReservation(options: {
            ? `<p style="${P}font-size:13px;color:#55604f;">Premier cours de ce dossier.
                 Tant que l'adresse n'est pas confirmée, il ne peut pas réserver
                 davantage.</p>`
+           : ""
+       }
+       ${
+         options.enAttente
+           ? `<p style="${P}">Le créneau est gardé en attendant votre réponse. L'élève
+                a reçu un accusé de réception, pas une confirmation.</p>
+              ${bouton(`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com"}/admin`, "Répondre à la demande")}`
            : ""
        }`
     ),
@@ -414,7 +469,7 @@ export async function reponseAnnulation(options: {
        }
        ${
          options.reponse
-           ? `<p style="${P}">Mon message :<br><em>${options.reponse}</em></p>`
+           ? `<p style="${P}">Mon message :<br><em>${echapper(options.reponse)}</em></p>`
            : ""
        }
        <p style="${P}">À bientôt,<br>Pauline</p>`
@@ -453,6 +508,7 @@ export async function rappelSeance(options: {
 export async function recapitulatifHebdomadaire(options: {
   destinataire: string;
   coursSemaine: number;
+  demandes: { debut: string; eleve: string }[];
   aValider: { debut: string; eleve: string }[];
   annulations: { debut: string; eleve: string }[];
   facturesEnRetard: { numero: string; montant: string; eleve: string }[];
@@ -473,6 +529,7 @@ export async function recapitulatifHebdomadaire(options: {
          </ul>`;
 
   const riens =
+    options.demandes.length === 0 &&
     options.aValider.length === 0 &&
     options.annulations.length === 0 &&
     options.facturesEnRetard.length === 0 &&
@@ -492,6 +549,11 @@ export async function recapitulatifHebdomadaire(options: {
             ? "Un cours est programmé cette semaine."
             : `${options.coursSemaine} cours sont programmés cette semaine.`
       }</p>
+
+       ${liste(
+         "Demandes de cours sans réponse — un élève attend",
+         options.demandes.map((s) => `${creneauLong(s.debut)} — ${s.eleve}`)
+       )}
 
        ${liste(
          "Séances passées encore à valider",
@@ -558,6 +620,61 @@ export async function sauvegardeMensuelle(options: {
        <p style="${P}font-size:13px;color:#55604f;">Gardez ce message : tant qu'il
          reste dans votre boîte, vos pièces comptables existent ailleurs que sur le
          site. Le prochain partira le mois prochain.</p>`
+    ),
+  });
+}
+
+/**
+ * Réponse de Pauline à une demande de cours.
+ *
+ * Un seul envoi couvre les deux cas : l'élève attend une réponse, et
+ * recevoir « acceptée » ou « refusée » dans le même fil lui évite de
+ * chercher lequel des deux emails est le plus récent.
+ */
+export async function reponseDemande(options: {
+  destinataire: string;
+  prenom: string;
+  creneaux: Creneau[];
+  acceptee: boolean;
+  motif: string | null;
+}): Promise<ResultatEnvoi> {
+  const plusieurs = options.creneaux.length > 1;
+  const quand = resumeCourt(options.creneaux);
+
+  return envoyer({
+    destinataire: options.destinataire,
+    sujet: options.acceptee
+      ? `C'est confirmé — ${quand}`
+      : `Je ne peux pas assurer ce cours — ${quand}`,
+    html: gabarit(
+      options.acceptee ? "C'est confirmé" : "Je suis désolée",
+      `<p style="${P}">Bonjour ${options.prenom},</p>
+       ${
+         options.acceptee
+           ? `<p style="${P}">${
+               plusieurs ? "Vos heures sont confirmées" : "Votre cours est confirmé"
+             }, en visioconférence :</p>
+              ${listeCreneaux(options.creneaux)}
+              <p style="${P}">Je vous enverrai le lien de connexion avant la séance.</p>
+              <p style="${P}">Vous pouvez annuler ou déplacer jusqu'à 24 heures avant
+                ${plusieurs ? "chaque séance" : "la séance"}, sans frais. Au-delà, la
+                séance est due.</p>
+              <p style="${P}">Il n'y a rien à régler maintenant : je vous enverrai une
+                facture en fin de mois.</p>`
+           : `<p style="${P}">Je ne peux pas assurer ${
+               plusieurs ? "les heures" : "le créneau"
+             } que vous avez demandé :</p>
+              ${listeCreneaux(options.creneaux)}
+              <p style="${P}">Le créneau est de nouveau libre, et rien ne vous est
+                facturé. N'hésitez pas à en choisir un autre : je serai ravie de vous
+                retrouver.</p>`
+       }
+       ${
+         options.motif
+           ? `<p style="${P}">Mon message :<br><em>${echapper(options.motif)}</em></p>`
+           : ""
+       }
+       <p style="${P}">À bientôt,<br>Pauline</p>`
     ),
   });
 }

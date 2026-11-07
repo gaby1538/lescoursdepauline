@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exigerAdmin } from "@/lib/admin";
 import { clientAdmin } from "@/lib/supabase";
-import { reponseAnnulation } from "@/lib/emails";
+import { reponseAnnulation, reponseDemande } from "@/lib/emails";
 
 function retour(chemin: string, parametre?: string): never {
   revalidatePath(chemin);
@@ -283,4 +283,105 @@ export async function repondreAnnulation(
   }
 
   retour(ou, "?ok=1");
+}
+
+/**
+ * Pauline accepte ou refuse une demande de cours.
+ *
+ * Une demande de plusieurs heures qui se suivent arrive ici en un seul
+ * bloc : il serait absurde de cliquer trois fois et d'envoyer trois
+ * emails pour un cours de trois heures. La décision porte donc sur une
+ * liste d'identifiants, et l'élève reçoit un seul message.
+ *
+ * La bascule elle-même est faite par la base (decider_demande), sous
+ * verrou : deux onglets ouverts ne peuvent pas décider deux fois.
+ */
+export async function deciderDemande(
+  decision: string,
+  formulaire: FormData
+): Promise<void> {
+  await exigerAdmin();
+
+  const ou = destination(formulaire, "/admin");
+  const accepter = decision === "acceptee";
+  const motif = String(formulaire.get("motif") ?? "").trim().slice(0, 500) || null;
+
+  if (!["acceptee", "refusee"].includes(decision)) retour(ou, "?erreur=decision");
+
+  const ids = String(formulaire.get("ids") ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter((v) => /^[0-9a-f-]{36}$/.test(v));
+
+  if (ids.length === 0) retour(ou, "?erreur=decision");
+
+  const supabase = clientAdmin();
+
+  const { data: lignes } = await supabase
+    .from("reservations")
+    .select("id, debut, fin, dossier_id, validee_le, statut")
+    .in("id", ids)
+    .order("debut");
+
+  const demandes = (lignes ?? []).filter(
+    (r) => r.statut === "reservee" && !r.validee_le
+  );
+
+  if (demandes.length === 0) retour(ou, "?erreur=introuvable");
+
+  // Un bloc appartient à un seul dossier. Si ce n'est pas le cas, le
+  // formulaire a été bricolé : on s'arrête plutôt que de deviner.
+  const dossierId = demandes[0].dossier_id;
+  if (demandes.some((r) => r.dossier_id !== dossierId)) {
+    retour(ou, "?erreur=decision");
+  }
+
+  const echecs: string[] = [];
+  for (const demande of demandes) {
+    const { error } = await supabase.rpc("decider_demande", {
+      demande: demande.id,
+      accepter,
+      motif,
+    });
+    if (error) echecs.push(error.message);
+  }
+
+  if (echecs.length === demandes.length) {
+    console.error("décision sur demande", echecs[0]);
+    retour(ou, "?erreur=enregistrement");
+  }
+
+  const { data: dossier } = await supabase
+    .from("dossiers")
+    .select("email, prenom")
+    .eq("id", dossierId)
+    .maybeSingle();
+
+  if (dossier) {
+    const resultat = await reponseDemande({
+      destinataire: dossier.email,
+      prenom: dossier.prenom ?? "",
+      creneaux: demandes.map((r) => ({ debut: r.debut, fin: r.fin })),
+      acceptee: accepter,
+      motif,
+    });
+
+    await supabase.from("journal").insert({
+      acteur: "pauline",
+      dossier_id: dossierId,
+      objet: "reservation",
+      objet_id: demandes[0].id,
+      action: accepter ? "demande_acceptee" : "demande_refusee",
+      details: {
+        heures: demandes.length,
+        motif,
+        email: resultat.detail,
+        echecs: echecs.length ? echecs : undefined,
+      },
+    });
+  }
+
+  revalidatePath("/reserver");
+  revalidatePath("/mon-espace");
+  retour(ou, echecs.length ? "?erreur=partiel" : "?ok=1");
 }

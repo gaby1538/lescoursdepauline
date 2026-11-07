@@ -84,6 +84,7 @@ export async function GET(requete: NextRequest) {
     .from("reservations")
     .select("id, debut, lien_visio, dossiers (email, prenom, eleve_prenom)")
     .eq("statut", "reservee")
+    .not("validee_le", "is", null)
     .is("rappel_envoye_le", null)
     .gte("debut", new Date(maintenant).toISOString())
     .lte("debut", limite)
@@ -171,17 +172,28 @@ async function envoyerRecapitulatif(reglages: Reglages): Promise<string> {
     maintenant.getTime() + 7 * 24 * 3600 * 1000
   ).toISOString();
 
-  const [semaine, aValider, annulations, retards, echecs] = await Promise.all([
+  const [semaine, demandes, aValider, annulations, retards, echecs] =
+    await Promise.all([
     supabase
       .from("reservations")
       .select("id", { count: "exact", head: true })
       .eq("statut", "reservee")
+      .not("validee_le", "is", null)
       .gte("debut", instant)
       .lte("debut", dansUneSemaine),
+    // Une demande oubliée est le pire des oublis : quelqu'un attend.
     supabase
       .from("reservations")
       .select("debut, dossiers (eleve_prenom)")
       .eq("statut", "reservee")
+      .is("validee_le", null)
+      .order("debut")
+      .limit(20),
+    supabase
+      .from("reservations")
+      .select("debut, dossiers (eleve_prenom)")
+      .eq("statut", "reservee")
+      .not("validee_le", "is", null)
       .lt("debut", instant)
       .order("debut")
       .limit(20),
@@ -216,6 +228,7 @@ async function envoyerRecapitulatif(reglages: Reglages): Promise<string> {
   const resultat = await recapitulatifHebdomadaire({
     destinataire: reglages.email_contact ?? "contact.capsvt@gmail.com",
     coursSemaine: semaine.count ?? 0,
+    demandes: (demandes.data ?? []).map((r) => ({ debut: r.debut, eleve: nom(r) })),
     aValider: (aValider.data ?? []).map((r) => ({ debut: r.debut, eleve: nom(r) })),
     annulations: (annulations.data ?? []).map((r) => ({
       debut: r.debut,

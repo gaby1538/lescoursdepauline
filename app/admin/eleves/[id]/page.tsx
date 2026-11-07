@@ -49,7 +49,7 @@ export default async function FicheEleve({
     supabase
       .from("reservations")
       .select(
-        "id, debut, statut, sujet, prix_cents, facture_id, annulation_demandee_le, annulation_decision, annulation_reponse, annulation_motif"
+        "id, debut, statut, validee_le, refus_motif, sujet, prix_cents, facture_id, annulation_demandee_le, annulation_decision, annulation_reponse, annulation_motif"
       )
       .eq("dossier_id", id)
       .order("debut", { ascending: false }),
@@ -107,7 +107,12 @@ export default async function FicheEleve({
           </div>
           <div className="chiffre">
             <p className="chiffre__valeur">
-              {(cours ?? []).filter((c) => c.statut === "reservee" && c.debut >= maintenant).length}
+              {
+                (cours ?? []).filter(
+                  (c) =>
+                    c.statut === "reservee" && c.validee_le && c.debut >= maintenant
+                ).length
+              }
             </p>
             <p className="chiffre__libelle">à venir</p>
           </div>
@@ -155,7 +160,19 @@ export default async function FicheEleve({
                       ) : null}
                     </td>
                     <td>
-                      <span className="etiquette">{LIBELLE[c.statut] ?? c.statut}</span>
+                      <span
+                        className={
+                          c.statut === "reservee" && !c.validee_le
+                            ? "etiquette etiquette--attente"
+                            : "etiquette"
+                        }
+                      >
+                        {c.statut === "reservee" && !c.validee_le
+                          ? "À valider"
+                          : c.statut === "annulee_par_pauline" && !c.validee_le
+                            ? "Demande refusée"
+                            : LIBELLE[c.statut] ?? c.statut}
+                      </span>
                       <br />
                       <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
                         {euros(c.prix_cents)}
@@ -163,7 +180,12 @@ export default async function FicheEleve({
                       </span>
                     </td>
                     <td className="droite">
-                      {c.statut === "reservee" && (
+                      {c.statut === "reservee" && !c.validee_le && (
+                        <Link href="/admin" style={{ fontSize: 13 }}>
+                          répondre à la demande
+                        </Link>
+                      )}
+                      {c.statut === "reservee" && c.validee_le && (
                         <div style={{ display: "grid", gap: 6, justifyItems: "end" }}>
                           {c.debut < maintenant && (
                             <form action={marquerEffectue}>

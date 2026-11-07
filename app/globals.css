@@ -489,6 +489,22 @@ table.tarifs tbody tr + tr { border-top: 1px solid var(--bordure-douce); }
   white-space: nowrap;
 }
 
+/* Une demande en attente se repère avant tout le reste du tableau de
+   bord : c'est la seule chose qui bloque quelqu'un d'autre. */
+.carte--attente {
+  border-color: var(--or-clair);
+  box-shadow: inset 3px 0 0 var(--or-clair);
+}
+
+/* Une demande qui attend : l'or signale, sans alarmer comme le ferait
+   un rouge. */
+.etiquette--attente {
+  background: #fdf6e4;
+  border-color: var(--or-clair);
+  color: var(--or-texte);
+  font-weight: 600;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Pages légales                                                      */
 /* ------------------------------------------------------------------ */

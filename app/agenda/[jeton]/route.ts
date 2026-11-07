@@ -50,6 +50,7 @@ type Seance = {
   debut: string;
   fin: string;
   statut: string;
+  validee_le: string | null;
   sujet: string | null;
   lien_visio: string | null;
   annulation_demandee_le: string | null;
@@ -92,7 +93,7 @@ export async function GET(
   const { data } = await supabase
     .from("reservations")
     .select(
-      "id, debut, fin, statut, sujet, lien_visio, annulation_demandee_le, annulation_traitee_le, dossiers (prenom, nom, email, eleve_prenom, eleve_classe)"
+      "id, debut, fin, statut, validee_le, sujet, lien_visio, annulation_demandee_le, annulation_traitee_le, dossiers (prenom, nom, email, eleve_prenom, eleve_classe)"
     )
     .in("statut", ["reservee", "effectuee"])
     .gte("debut", depuis)
@@ -116,11 +117,15 @@ export async function GET(
     const eleve = s.dossiers?.eleve_prenom ?? "Élève";
     const classe = s.dossiers?.eleve_classe ? ` (${s.dossiers.eleve_classe})` : "";
     const enAttente = s.annulation_demandee_le && !s.annulation_traitee_le;
+    // Une demande non validée figure quand même dans l'agenda : le créneau
+    // est pris, et le voir évite de promettre la même heure ailleurs.
+    const aValider = !s.validee_le;
 
     const details = [
       `Réservé par ${s.dossiers?.prenom ?? ""} ${s.dossiers?.nom ?? ""}`.trim(),
       s.dossiers?.email ?? "",
       s.sujet ? `Sujet : ${s.sujet}` : "",
+      aValider ? "⚠ Demande en attente de votre validation." : "",
       enAttente ? "⚠ Annulation demandée, en attente de votre réponse." : "",
     ]
       .filter(Boolean)
@@ -133,11 +138,15 @@ export async function GET(
       `DTSTART:${horodatage(s.debut)}`,
       `DTEND:${horodatage(s.fin)}`,
       plier(
-        `SUMMARY:${echapper(`${enAttente ? "⚠ " : ""}SVT — ${eleve}${classe}`)}`
+        `SUMMARY:${echapper(
+          `${aValider ? "? " : enAttente ? "⚠ " : ""}SVT — ${eleve}${classe}${
+            aValider ? " — à valider" : ""
+          }`
+        )}`
       ),
       plier(`DESCRIPTION:${echapper(details)}`),
       ...(s.lien_visio ? [plier(`LOCATION:${echapper(s.lien_visio)}`)] : []),
-      `STATUS:${s.statut === "effectuee" ? "CONFIRMED" : "TENTATIVE"}`,
+      `STATUS:${aValider ? "TENTATIVE" : "CONFIRMED"}`,
       "END:VEVENT"
     );
   }
