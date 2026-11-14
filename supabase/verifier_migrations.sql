@@ -85,4 +85,29 @@ from (
      and pg_get_constraintdef(oid) like '%modification%'
 ) t
 
+union all select
+  'Numérotation cohérente (0018)',
+  to_char(count(*), '9') || ' / 1 élément',
+  case when count(*) = 1 then 'OK' else 'MANQUANTE' end
+from pg_proc where proname = 'largeur_numero'
+
+union all select
+  'Factures à envoyer (0019)',
+  to_char(count(*), '9') || ' / 3 éléments',
+  case when count(*) = 3 then 'OK' else 'MANQUANTE' end
+from (
+  select 1 from information_schema.columns
+   where table_name = 'factures' and column_name = 'remise_le'
+  union all select 1 from information_schema.columns
+   where table_name = 'factures' and column_name = 'message_accompagnement'
+  union all select 1 from pg_proc where proname = 'facture_transmise'
+) t
+
+union all select
+  'Transfert par Pauline (0020)',
+  to_char(count(*), '9') || ' / 1 élément',
+  case when count(*) = 1 then 'OK' else 'MANQUANTE' end
+from information_schema.columns
+ where table_name = 'factures' and column_name = 'transferee_le'
+
 order by 1;
