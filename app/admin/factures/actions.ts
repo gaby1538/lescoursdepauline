@@ -601,6 +601,87 @@ export async function marquerPayee(formulaire: FormData): Promise<void> {
   retour("?ok=payee");
 }
 
+/**
+ * Revenir sur l'état d'une facture.
+ *
+ * Émettre était le seul geste que le site ne savait pas défaire, et
+ * l'erreur de clic existe : la mauvaise facture émise, envoyée, repérée
+ * dans la minute. Ce qu'il faut préserver n'est pas l'irréversibilité,
+ * c'est la continuité de la série — ni trou, ni doublon. Le numéro ne
+ * se rend donc qu'au bout de la série, et la base le vérifie
+ * elle-même : ces fonctions ne font que traduire son refus.
+ */
+export async function remettreEnBrouillon(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const id = String(formulaire.get("id") ?? "");
+  if (!id) retour();
+
+  const surErreur = (cause: string): never => {
+    revalidatePath("/admin/factures");
+    redirect(`/admin/factures/${id}/modifier?erreur=${cause}`);
+  };
+
+  const supabase = clientAdmin();
+  const { data: rendu, error } = await supabase.rpc("remettre_en_brouillon", {
+    facture: id,
+  });
+
+  if (error) {
+    const message = error.message ?? "";
+    console.error("retour au brouillon", error);
+    surErreur(
+      message.includes("NUMERO_NON_DERNIER")
+        ? "pas_la_derniere"
+        : message.includes("NUMERO_HORS_SERIE")
+          ? "numero_hors_serie"
+          : message.includes("DEJA_BROUILLON")
+            ? "deja_brouillon"
+            : "retour_impossible"
+    );
+  }
+
+  // Le numéro rendu est consigné : c'est la seule trace qu'il a servi
+  // une première fois, et elle vaut mieux qu'un souvenir.
+  await supabase.from("journal").insert({
+    acteur: "pauline",
+    objet: "facture",
+    objet_id: id,
+    action: `retour_au_brouillon:${rendu ?? "?"}`,
+  });
+
+  revalidatePath("/admin/factures");
+  redirect(
+    `/admin/factures/${id}/modifier?ok=rendue&numero=${encodeURIComponent(
+      String(rendu ?? "")
+    )}`
+  );
+}
+
+export async function demarquerPayee(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const id = String(formulaire.get("id") ?? "");
+  if (!id) retour();
+
+  const supabase = clientAdmin();
+  const { error } = await supabase.rpc("demarquer_payee", { facture: id });
+
+  if (error) {
+    console.error("démarquage du paiement", error);
+    retour("?erreur=enregistrement");
+  }
+
+  await supabase.from("journal").insert({
+    acteur: "pauline",
+    objet: "facture",
+    objet_id: id,
+    action: "paiement_annule",
+  });
+
+  retour("?ok=depointee");
+}
+
 export async function supprimerBrouillon(formulaire: FormData): Promise<void> {
   await exigerAdmin();
 

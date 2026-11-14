@@ -110,4 +110,11 @@ union all select
 from information_schema.columns
  where table_name = 'factures' and column_name = 'transferee_le'
 
+union all select
+  'Revenir en arrière (0021)',
+  to_char(count(*), '9') || ' / 2 éléments',
+  case when count(*) = 2 then 'OK' else 'MANQUANTE' end
+from pg_proc
+ where proname in ('remettre_en_brouillon', 'demarquer_payee')
+
 order by 1;

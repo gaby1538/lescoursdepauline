@@ -323,12 +323,21 @@ export default async function Factures({
             Notée comme remise en main propre. Aucun email n&apos;est parti.
           </p>
         )}
+        {ok === "depointee" && (
+          <p className="succes">
+            Le paiement est retiré : la facture repasse en attente de règlement
+            et ressort du livre des recettes. Son numéro n&apos;a pas bougé.
+          </p>
+        )}
         {ok === "rien" && (
           <p className="succes">
             Aucun cours à facturer sur cette période : tout est déjà sur une facture.
           </p>
         )}
-        {ok && !["emise", "envoyee", "transferee", "remise", "rien"].includes(ok) && (
+        {ok &&
+          !["emise", "envoyee", "transferee", "remise", "rien", "depointee"].includes(
+            ok
+          ) && (
           <p className="succes">C&apos;est fait.</p>
         )}
 

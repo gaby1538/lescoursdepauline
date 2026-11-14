@@ -4,7 +4,11 @@ import { clientAdmin } from "@/lib/supabase";
 import { euros } from "@/lib/constantes";
 import { moisLong } from "@/lib/dates";
 import { etiquette, saisie } from "@/components/Champs";
-import { enregistrerFacture } from "../../actions";
+import {
+  demarquerPayee,
+  enregistrerFacture,
+  remettreEnBrouillon,
+} from "../../actions";
 import Edition from "./Edition";
 
 export const dynamic = "force-dynamic";
@@ -14,10 +18,10 @@ export default async function ModifierFacture({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string; erreur?: string }>;
+  searchParams: Promise<{ ok?: string; erreur?: string; numero?: string }>;
 }) {
   const { id } = await params;
-  const { ok, erreur } = await searchParams;
+  const { ok, erreur, numero: numeroRendu } = await searchParams;
   const supabase = clientAdmin();
 
   const { data: facture } = await supabase
@@ -57,6 +61,25 @@ export default async function ModifierFacture({
   const tarifHoraire = tarif?.prix_cents ?? 4000;
 
   const brouillon = facture.statut === "brouillon";
+
+  // Le numéro ne se rend qu'au bout de la série : au milieu, il
+  // laisserait un trou que rien ne vient combler. On le vérifie ici pour
+  // ne pas proposer un bouton qui ne peut que refuser.
+  const rang = /^(\d{4})-(\d+)$/.exec(facture.numero ?? "");
+  const { data: compteur } = rang
+    ? await supabase
+        .from("compteur_factures")
+        .select("dernier")
+        .eq("annee", Number(rang[1]))
+        .maybeSingle()
+    : { data: null };
+
+  const derniereDeLaSerie = !!rang && compteur?.dernier === Number(rang[2]);
+  const transmise = !!(
+    facture.envoyee_le ||
+    facture.remise_le ||
+    facture.transferee_le
+  );
   const defaut = `${client?.prenom ?? ""} ${client?.nom ?? ""}`.trim();
   const mois = moisLong(facture.periode_debut);
   const titre = mois ? mois.charAt(0).toUpperCase() + mois.slice(1) : "Brouillon";
@@ -78,6 +101,12 @@ export default async function ModifierFacture({
             Facture créée, encore vide. Ajoutez vos lignes ci-dessous, puis
             émettez-la.
           </p>
+        ) : ok === "rendue" ? (
+          <p className="succes">
+            Le numéro {numeroRendu || "précédent"} est rendu à la série : la
+            prochaine facture émise le reprendra. Celle-ci est redevenue un
+            brouillon, avec ses lignes intactes.
+          </p>
         ) : ok ? (
           <p className="succes">Enregistré.</p>
         ) : null}
@@ -94,6 +123,28 @@ export default async function ModifierFacture({
           <p className="alerte">
             Ce numéro est déjà porté par une autre facture. Deux factures ne peuvent
             pas partager un numéro.
+          </p>
+        )}
+        {erreur === "pas_la_derniere" && (
+          <p className="alerte">
+            Cette facture n&apos;est pas la dernière émise de l&apos;année : lui
+            reprendre son numéro laisserait un trou au milieu de la série, ce
+            qu&apos;une numérotation continue interdit. Pour la corriger, émettez
+            une facture rectificative.
+          </p>
+        )}
+        {erreur === "numero_hors_serie" && (
+          <p className="alerte">
+            Son numéro ne suit pas la forme de la série ({new Date().getFullYear()}
+            -0001) : le site ne sait pas à quel rang le rendre.
+          </p>
+        )}
+        {erreur === "deja_brouillon" && (
+          <p className="alerte">Cette facture est déjà un brouillon.</p>
+        )}
+        {erreur === "retour_impossible" && (
+          <p className="alerte">
+            Le retour au brouillon a échoué. Rechargez la page et réessayez.
           </p>
         )}
         {erreur === "numero" && (
@@ -121,6 +172,83 @@ export default async function ModifierFacture({
               ne se modifie plus — c&apos;est ce qu&apos;exige une numérotation
               continue.
             </p>
+
+            {/* Replié, parce qu'on ne revient pas en arrière tous les
+                jours — mais à portée de main, parce que l'erreur de clic
+                existe et qu'il n'y avait aucun moyen de la réparer. */}
+            <details className="repli-discret" style={{ marginTop: 36 }}>
+              <summary>Corriger l&apos;état de cette facture</summary>
+              <div className="repli-discret__corps">
+                {facture.payee_le && (
+                  <form action={demarquerPayee} style={{ marginBottom: 28 }}>
+                    <input type="hidden" name="id" value={id} />
+                    <p
+                      style={{
+                        fontSize: 14.5,
+                        lineHeight: 1.65,
+                        color: "var(--texte-doux)",
+                        marginBottom: 14,
+                      }}
+                    >
+                      Pointée payée par erreur, ou sur la mauvaise ligne ? Elle
+                      repasse en attente de règlement et ressort du livre des
+                      recettes à cette date. Son numéro ne bouge pas.
+                    </p>
+                    <button type="submit" className="action action--contour">
+                      Démarquer « payée »
+                    </button>
+                  </form>
+                )}
+
+                {derniereDeLaSerie ? (
+                  <form action={remettreEnBrouillon}>
+                    <input type="hidden" name="id" value={id} />
+                    <p
+                      style={{
+                        fontSize: 14.5,
+                        lineHeight: 1.65,
+                        color: "var(--texte-doux)",
+                        marginBottom: 14,
+                      }}
+                    >
+                      Elle porte le dernier numéro de l&apos;année : il peut lui
+                      être repris sans trouer la série. La facture redevient un
+                      brouillon modifiable, garde ses lignes et ses cours, et
+                      c&apos;est la prochaine émission qui reprendra{" "}
+                      {facture.numero}.
+                    </p>
+
+                    {transmise && (
+                      <p className="alerte" style={{ marginBottom: 16 }}>
+                        <strong>Elle est déjà partie chez la famille.</strong> Le
+                        document qu&apos;elle a reçu porte {facture.numero} ; si
+                        vous rendez ce numéro, il désignera ensuite une autre
+                        facture. Mieux vaut, dans ce cas, prévenir la famille ou
+                        lui renvoyer la version corrigée.
+                      </p>
+                    )}
+
+                    <button type="submit" className="action action--contour">
+                      Remettre en brouillon
+                    </button>
+                  </form>
+                ) : (
+                  <p
+                    style={{
+                      fontSize: 14.5,
+                      lineHeight: 1.65,
+                      color: "var(--texte-doux)",
+                    }}
+                  >
+                    Elle n&apos;est pas la dernière émise de l&apos;année : lui
+                    reprendre son numéro laisserait un trou au milieu de la
+                    série. Une numérotation continue l&apos;interdit, et le site
+                    ne sait pas le faire. Pour corriger une facture de ce
+                    rang-là, il faut en émettre une rectificative.
+                  </p>
+                )}
+              </div>
+            </details>
           </>
         ) : (
           <>

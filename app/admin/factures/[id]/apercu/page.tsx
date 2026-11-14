@@ -157,7 +157,11 @@ export default async function ApercuFacture({
           <p className="facture__impression">
             Pour l&apos;enregistrer en PDF :{" "}
             <a href={`/admin/factures/${id}/pdf`}>télécharger le PDF</a>, celui-là
-            même qui part en pièce jointe.
+            même qui part en pièce jointe. Une erreur à réparer ?{" "}
+            <Link href={`/admin/factures/${id}/modifier`}>
+              corriger l&apos;état de cette facture
+            </Link>
+            .
           </p>
         )}
       </div>
