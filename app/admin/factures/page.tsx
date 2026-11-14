@@ -323,6 +323,12 @@ export default async function Factures({
             Notée comme remise en main propre. Aucun email n&apos;est parti.
           </p>
         )}
+        {ok === "a_renvoyer" && (
+          <p className="succes">
+            La facture est de nouveau dans « À envoyer ». Son numéro et ses dates
+            n&apos;ont pas bougé.
+          </p>
+        )}
         {ok === "depointee" && (
           <p className="succes">
             Le paiement est retiré : la facture repasse en attente de règlement
@@ -335,7 +341,15 @@ export default async function Factures({
           </p>
         )}
         {ok &&
-          !["emise", "envoyee", "transferee", "remise", "rien", "depointee"].includes(
+          ![
+            "emise",
+            "envoyee",
+            "transferee",
+            "remise",
+            "rien",
+            "depointee",
+            "a_renvoyer",
+          ].includes(
             ok
           ) && (
           <p className="succes">C&apos;est fait.</p>
@@ -474,7 +488,7 @@ export default async function Factures({
 
                     <div className="carte-facture__actions">
                       <Link
-                        href={`/admin/factures/${f.id}/modifier`}
+                        href={`/admin/factures/${f.id}/modifier?corriger=1`}
                         className="action action--contour"
                       >
                         Modifier
@@ -593,6 +607,12 @@ export default async function Factures({
                           Remise en main propre
                         </button>
                       </form>
+                      <Link
+                        href={`/admin/factures/${f.id}/modifier?corriger=1`}
+                        className="action action--discret"
+                      >
+                        Corriger l&apos;état
+                      </Link>
                     </div>
                   </div>
                 );
@@ -640,15 +660,17 @@ export default async function Factures({
                     {euros(f.total_cents)}
                   </td>
                   <td className="droite">
-                    <span
+                    <Link
+                      href={`/admin/factures/${f.id}/modifier?corriger=1`}
+                      title="Corriger l'état de cette facture"
                       className={
                         etatFacture(f) === "À envoyer" || etatFacture(f) === "En retard"
-                          ? "etiquette etiquette--attente"
-                          : "etiquette"
+                          ? "etiquette etiquette--attente etiquette--lien"
+                          : "etiquette etiquette--lien"
                       }
                     >
                       {etatFacture(f)}
-                    </span>
+                    </Link>
                   </td>
                   <td className="droite">
                     {f.payee_le ? (

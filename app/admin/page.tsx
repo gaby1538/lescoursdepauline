@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { clientAdmin } from "@/lib/supabase";
-import { creneauLong, blocLong, regrouperReservations } from "@/lib/dates";
+import { ajouterJours, blocLong, creneauLong, dureeCourte, lundiDeLaSemaine, parisVersInstant, regrouperReservations } from "@/lib/dates";
 import {
   marquerEffectue,
   annulerCours,
@@ -37,12 +37,42 @@ const MESSAGES: Record<string, string> = {
 export default async function TableauDeBord({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; erreur?: string }>;
+  searchParams: Promise<{ ok?: string; erreur?: string; periode?: string }>;
 }) {
-  const { ok, erreur } = await searchParams;
+  const { ok, erreur, periode } = await searchParams;
   const supabase = clientAdmin();
   const maintenant = new Date().toISOString();
   const debutMois = `${new Date().toISOString().slice(0, 7)}-01`;
+
+  // « Cours à venir » sans borne ne veut rien dire : quarante cours
+  // posés jusqu'en juin ne disent pas à quoi ressemble la semaine. Le
+  // chiffre se lit donc sur une période choisie, et le total se range
+  // plus bas, où il redevient une information de contexte.
+  const choix = ["semaine", "mois", "trois"].includes(periode ?? "")
+    ? (periode as string)
+    : "semaine";
+
+  const minuit = (jour: string) => parisVersInstant(`${jour}T00:00`) ?? maintenant;
+  const dansNJours = (n: number) =>
+    new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+
+  let finPeriode: string;
+  let nomPeriode: string;
+
+  if (choix === "mois") {
+    const d = new Date();
+    const suivant = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
+    finPeriode = minuit(suivant.toISOString().slice(0, 10));
+    nomPeriode = "ce mois-ci";
+  } else if (choix === "trois") {
+    finPeriode = minuit(dansNJours(90));
+    nomPeriode = "d'ici trois mois";
+  } else {
+    // La semaine en cours s'arrête au lundi suivant.
+    const lundi = lundiDeLaSemaine();
+    finPeriode = minuit(ajouterJours(lundi, 7));
+    nomPeriode = "cette semaine";
+  }
 
   const [
     aDecider,
@@ -51,6 +81,8 @@ export default async function TableauDeBord({
     aValider,
     eleves,
     aVenir,
+    surLaPeriode,
+    dernierCours,
     duMois,
     impayees,
     parametres,
@@ -106,6 +138,22 @@ export default async function TableauDeBord({
       .gte("debut", maintenant),
     supabase
       .from("reservations")
+      .select("debut, fin, prix_cents, dossier_id")
+      .eq("statut", "reservee")
+      .not("validee_le", "is", null)
+      .gte("debut", maintenant)
+      .lt("debut", finPeriode),
+    supabase
+      .from("reservations")
+      .select("debut")
+      .eq("statut", "reservee")
+      .not("validee_le", "is", null)
+      .gte("debut", maintenant)
+      .order("debut", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("reservations")
       .select("prix_cents")
       .gte("debut", debutMois)
       .not("validee_le", "is", null)
@@ -131,6 +179,7 @@ export default async function TableauDeBord({
     ["prochains cours", prochains],
     ["cours à valider", aValider],
     ["compteurs", aVenir],
+    ["cours de la période", surLaPeriode],
     ["recette du mois", duMois],
     ["factures impayées", impayees],
     ["réglages", parametres],
@@ -232,6 +281,34 @@ export default async function TableauDeBord({
   );
   const suspension = parametres.data?.reservations_suspendues ?? "aucune";
 
+  // Quatre nombres qui parlent tous de la même période : combien de
+  // cours, combien d'heures, ce qu'ils représentent, et pour combien
+  // d'élèves. Lus ensemble, ils décrivent une semaine ou un mois ;
+  // isolés, ils ne décrivent rien.
+  const coursPeriode = (surLaPeriode.data ?? []) as {
+    debut: string;
+    fin: string;
+    prix_cents: number | null;
+    dossier_id: string;
+  }[];
+
+  const heuresPeriode = coursPeriode.reduce(
+    (h, r) => h + (Date.parse(r.fin) - Date.parse(r.debut)) / 3600000,
+    0
+  );
+  const recettePeriode = coursPeriode.reduce(
+    (somme, r) => somme + (r.prix_cents ?? 0),
+    0
+  );
+  const elevesPeriode = new Set(coursPeriode.map((r) => r.dossier_id)).size;
+
+  const horizon = dernierCours.data?.debut
+    ? new Date(dernierCours.data.debut).toLocaleDateString("fr-FR", {
+        day: "numeric",
+        month: "long",
+      })
+    : null;
+
   return (
     <section className="section">
       <div className="conteneur">
@@ -285,15 +362,61 @@ export default async function TableauDeBord({
           </p>
         )}
 
+        <div className="periodes" style={{ marginTop: 0, marginBottom: 18 }}>
+          {[
+            ["semaine", "Cette semaine"],
+            ["mois", "Ce mois-ci"],
+            ["trois", "3 prochains mois"],
+          ].map(([cle, nom]) => (
+            <Link
+              key={cle}
+              href={`/admin?periode=${cle}`}
+              className={choix === cle ? "periode periode--actif" : "periode"}
+            >
+              {nom}
+            </Link>
+          ))}
+        </div>
+
         <div className="chiffres">
-          <Chiffre valeur={String(aVenir.count ?? 0)} libelle="cours à venir" />
-          <Chiffre valeur={String(eleves.count ?? 0)} libelle="dossiers élèves" />
-          <Chiffre valeur={`${heuresDuMois} h`} libelle="ce mois-ci" />
           <Chiffre
-            valeur={euros(recetteDuMois)}
-            libelle={duImpaye > 0 ? `dont ${euros(duImpaye)} en attente` : "facturable ce mois"}
+            valeur={String(coursPeriode.length)}
+            libelle={`cours ${nomPeriode}`}
+          />
+          <Chiffre valeur={dureeCourte(heuresPeriode)} libelle="de cours" />
+          <Chiffre valeur={euros(recettePeriode)} libelle="que cela représente" />
+          <Chiffre
+            valeur={String(elevesPeriode)}
+            libelle={elevesPeriode > 1 ? "élèves concernés" : "élève concerné"}
           />
         </div>
+
+        {/* Le reste n'est pas de la période : c'est le contexte dans
+            lequel elle se lit. Une ligne suffit. */}
+        <p
+          style={{
+            marginTop: 16,
+            fontSize: 14,
+            lineHeight: 1.75,
+            color: "var(--texte-gris)",
+          }}
+        >
+          Au-delà : <strong style={{ color: "var(--foret)" }}>{aVenir.count ?? 0}</strong>{" "}
+          cours posés en tout
+          {horizon ? `, jusqu'au ${horizon}` : ""} ·{" "}
+          <Link href="/admin/eleves">{eleves.count ?? 0} dossiers élèves</Link> ·{" "}
+          {heuresDuMois} h données ce mois-ci, soit {euros(recetteDuMois)} à facturer
+          {duImpaye > 0 ? (
+            <>
+              {" · "}
+              <Link href="/admin/factures">
+                <strong style={{ color: "var(--or-texte)" }}>
+                  {euros(duImpaye)} en attente de règlement
+                </strong>
+              </Link>
+            </>
+          ) : null}
+        </p>
 
         {blocsADecider.length > 0 && (
           <>

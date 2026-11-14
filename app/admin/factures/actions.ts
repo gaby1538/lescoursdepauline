@@ -658,6 +658,42 @@ export async function remettreEnBrouillon(formulaire: FormData): Promise<void> {
   );
 }
 
+export async function annulerEnvoi(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const id = String(formulaire.get("id") ?? "");
+  if (!id) retour();
+
+  const supabase = clientAdmin();
+
+  // Rien de ce qui touche à la série : le numéro, les dates et le
+  // montant ne bougent pas. On efface seulement la trace du départ, et
+  // la facture revient dans « À envoyer ».
+  const { error } = await supabase
+    .from("factures")
+    .update({
+      envoyee_le: null,
+      remise_le: null,
+      transferee_le: null,
+      message_accompagnement: null,
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("annulation de l'envoi", error);
+    retour("?erreur=enregistrement");
+  }
+
+  await supabase.from("journal").insert({
+    acteur: "pauline",
+    objet: "facture",
+    objet_id: id,
+    action: "envoi_annule",
+  });
+
+  retour("?ok=a_renvoyer");
+}
+
 export async function demarquerPayee(formulaire: FormData): Promise<void> {
   await exigerAdmin();
 

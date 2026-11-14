@@ -1924,3 +1924,14 @@ table.liste .droite { text-align: right; }
   border: 1px solid var(--bordure);
   border-radius: 6px;
 }
+
+/* Une étiquette d'état qui mène à l'écran où on la corrige. */
+.etiquette--lien {
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.etiquette--lien:hover {
+  border-color: var(--foret);
+  color: var(--foret);
+}

@@ -5,6 +5,7 @@ import { euros } from "@/lib/constantes";
 import { moisLong } from "@/lib/dates";
 import { etiquette, saisie } from "@/components/Champs";
 import {
+  annulerEnvoi,
   demarquerPayee,
   enregistrerFacture,
   remettreEnBrouillon,
@@ -18,10 +19,15 @@ export default async function ModifierFacture({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string; erreur?: string; numero?: string }>;
+  searchParams: Promise<{
+    ok?: string;
+    erreur?: string;
+    numero?: string;
+    corriger?: string;
+  }>;
 }) {
   const { id } = await params;
-  const { ok, erreur, numero: numeroRendu } = await searchParams;
+  const { ok, erreur, numero: numeroRendu, corriger } = await searchParams;
   const supabase = clientAdmin();
 
   const { data: facture } = await supabase
@@ -176,9 +182,35 @@ export default async function ModifierFacture({
             {/* Replié, parce qu'on ne revient pas en arrière tous les
                 jours — mais à portée de main, parce que l'erreur de clic
                 existe et qu'il n'y avait aucun moyen de la réparer. */}
-            <details className="repli-discret" style={{ marginTop: 36 }}>
+            <details
+              className="repli-discret"
+              style={{ marginTop: 36 }}
+              open={corriger === "1"}
+            >
               <summary>Corriger l&apos;état de cette facture</summary>
               <div className="repli-discret__corps">
+                {transmise && (
+                  <form action={annulerEnvoi} style={{ marginBottom: 28 }}>
+                    <input type="hidden" name="id" value={id} />
+                    <p
+                      style={{
+                        fontSize: 14.5,
+                        lineHeight: 1.65,
+                        color: "var(--texte-doux)",
+                        marginBottom: 14,
+                      }}
+                    >
+                      Partie trop vite, ou « remise en main propre » cochée à tort ?
+                      Elle retourne dans « À envoyer », prête à repartir. Son numéro,
+                      ses dates et son montant ne bougent pas — c&apos;est le retour
+                      en arrière le plus sûr des trois.
+                    </p>
+                    <button type="submit" className="action action--contour">
+                      Marquer comme non envoyée
+                    </button>
+                  </form>
+                )}
+
                 {facture.payee_le && (
                   <form action={demarquerPayee} style={{ marginBottom: 28 }}>
                     <input type="hidden" name="id" value={id} />
