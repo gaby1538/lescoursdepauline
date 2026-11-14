@@ -61,7 +61,12 @@ export default async function ModifierFacture({
           </Link>
         </p>
 
-        {ok === "nouvelle" ? (
+        {ok === "memorise" ? (
+          <p className="succes">
+            Enregistré, et les coordonnées de facturation sont reportées sur la
+            fiche de l&apos;élève.
+          </p>
+        ) : ok === "nouvelle" ? (
           <p className="succes">
             Facture créée, encore vide. Ajoutez vos lignes ci-dessous, puis
             émettez-la.
@@ -251,6 +256,18 @@ export default async function ModifierFacture({
                 />
               </div>
             </div>
+
+            <label className="case-a-cocher" style={{ marginTop: 18 }}>
+              <input type="checkbox" name="memoriser" value="1" />
+              <span>
+                Retenir ces coordonnées pour cet élève
+                <span className="case-a-cocher__aide">
+                  Elles sont copiées sur sa fiche, et les prochaines factures
+                  partiront déjà remplies. Sinon, elles ne valent que pour
+                  celle-ci.
+                </span>
+              </span>
+            </label>
 
             <div className="total-brouillon">
               <span>Total du brouillon</span>

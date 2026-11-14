@@ -50,6 +50,16 @@ export default async function Facture({
       .maybeSingle(),
   ]);
 
+  // Un brouillon n'a ni numéro ni date : la loi impose une numérotation
+  // continue, donc le numéro est attribué à l'émission et pas avant,
+  // sinon un brouillon abandonné laisserait un trou dans la série.
+  // On montre tout de même celui qu'elle recevra, pour que l'aperçu ne
+  // paraisse pas incomplet.
+  const brouillon = facture.statut === "brouillon";
+  const { data: numeroAVenir } = brouillon
+    ? await supabase.rpc("numero_suggere")
+    : { data: null };
+
   return (
     <section className="section facture-page">
       <div className="conteneur-etroit">
@@ -83,16 +93,22 @@ export default async function Facture({
                 style={{
                   fontFamily: "var(--serif)",
                   fontSize: 30,
-                  color: "var(--foret)",
+                  color: brouillon ? "var(--texte-gris)" : "var(--foret)",
                 }}
               >
-                {facture.numero ?? "sans numéro"}
+                {facture.numero ?? numeroAVenir ?? "sans numéro"}
               </p>
-              <p className="facture__petit">
-                Émise le {date(facture.emise_le)}
-                <br />
-                Échéance {date(facture.echeance_le)}
-              </p>
+              {brouillon ? (
+                <p className="facture__petit">
+                  Numéro et dates attribués à l&apos;émission
+                </p>
+              ) : (
+                <p className="facture__petit">
+                  Émise le {date(facture.emise_le)}
+                  <br />
+                  Échéance {date(facture.echeance_le)}
+                </p>
+              )}
             </div>
           </div>
 

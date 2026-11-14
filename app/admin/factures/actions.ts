@@ -195,19 +195,52 @@ export async function enregistrerFacture(formulaire: FormData): Promise<void> {
     }
   }
 
+  const destinataireNom =
+    String(formulaire.get("destinataire_nom") ?? "").trim() || null;
+  const destinataireAdresse =
+    String(formulaire.get("destinataire_adresse") ?? "").trim() || null;
+  const note = String(formulaire.get("note") ?? "").trim() || null;
+
   await supabase
     .from("factures")
     .update({
-      destinataire_nom: String(formulaire.get("destinataire_nom") ?? "").trim() || null,
-      destinataire_adresse:
-        String(formulaire.get("destinataire_adresse") ?? "").trim() || null,
-      note: String(formulaire.get("note") ?? "").trim() || null,
+      destinataire_nom: destinataireNom,
+      destinataire_adresse: destinataireAdresse,
+      note,
     })
     .eq("id", id);
 
+  // Reporter sur la fiche de l'élève, pour que la facture suivante
+  // parte déjà remplie. Sans ça, une adresse d'employeur ou un nom de
+  // société se ressaisit tous les mois.
+  if (String(formulaire.get("memoriser") ?? "") === "1") {
+    const { data: facture } = await supabase
+      .from("factures")
+      .select("dossier_id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (facture?.dossier_id) {
+      await supabase
+        .from("dossiers")
+        .update({
+          facturation_nom: destinataireNom,
+          facturation_adresse: destinataireAdresse,
+          facturation_note: note,
+        })
+        .eq("id", facture.dossier_id);
+
+      revalidatePath(`/admin/eleves/${facture.dossier_id}`);
+    }
+  }
+
   revalidatePath(`/admin/factures/${id}/modifier`);
   revalidatePath(`/factures/${id}`);
-  redirect(`/admin/factures/${id}/modifier?ok=1`);
+  redirect(
+    `/admin/factures/${id}/modifier?ok=${
+      String(formulaire.get("memoriser") ?? "") === "1" ? "memorise" : "1"
+    }`
+  );
 }
 
 export async function supprimerLigne(formulaire: FormData): Promise<void> {
