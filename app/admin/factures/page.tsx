@@ -6,7 +6,9 @@ import { etiquette, saisie } from "@/components/Champs";
 import {
   genererFactures,
   creerFactureManuelle,
-  emettreEtEnvoyer,
+  emettre,
+  envoyerFacture,
+  marquerRemise,
   marquerPayee,
   supprimerBrouillon,
 } from "./actions";
@@ -21,7 +23,9 @@ type Facture = {
   total_cents: number;
   echeance_le: string | null;
   envoyee_le: string | null;
+  remise_le: string | null;
   payee_le: string | null;
+  emise_le: string | null;
   dossiers: { eleve_prenom: string | null; prenom: string | null; email: string } | null;
 };
 
@@ -32,6 +36,16 @@ const LIBELLE: Record<string, string> = {
   en_retard: "En retard",
   annulee: "Annulée",
 };
+
+/** « Envoyée » est devenu ambigu : le statut dit émise, les dates disent transmise. */
+function etatFacture(f: Facture): string {
+  if (f.statut === "brouillon") return "Brouillon";
+  if (f.remise_le) return "Remise en main propre";
+  if (!f.envoyee_le && (f.statut === "envoyee" || f.statut === "en_retard")) {
+    return "À envoyer";
+  }
+  return LIBELLE[f.statut] ?? f.statut;
+}
 
 export default async function Factures({
   searchParams,
@@ -71,11 +85,27 @@ export default async function Factures({
   const { data } = await supabase
     .from("factures")
     .select(
-      "id, numero, statut, periode_debut, total_cents, echeance_le, envoyee_le, payee_le, dossiers (eleve_prenom, prenom, email)"
+      "id, numero, statut, emise_le, periode_debut, total_cents, echeance_le, envoyee_le, remise_le, payee_le, dossiers (eleve_prenom, prenom, email)"
     )
     .order("cree_le", { ascending: false });
 
   const liste = (data ?? []) as unknown as Facture[];
+
+  // Émises, numérotées, mais la famille ne les a pas. Elles comptent
+  // déjà dans les recettes et le délai de paiement court : une facture
+  // oubliée ici est pire qu'une facture jamais créée, parce que rien ne
+  // la réclame.
+  const aEnvoyer = liste.filter(
+    (f) =>
+      (f.statut === "envoyee" || f.statut === "en_retard") &&
+      !f.envoyee_le &&
+      !f.remise_le
+  );
+
+  const jours = (depuis: string | null) => {
+    if (!depuis) return 0;
+    return Math.floor((Date.now() - Date.parse(depuis)) / 86400000);
+  };
 
   // Le mois le plus utile est celui qui attend quelque chose ; à défaut,
   // le mois en cours. Proposer le mois précédent par défaut faisait
@@ -123,6 +153,29 @@ export default async function Factures({
         )}
         {erreur === "numero" && (
           <p className="alerte">L&apos;émission a échoué. Réessayez dans un instant.</p>
+        )}
+        {ok === "emise" && (
+          <p className="succes">
+            Facture émise et numérotée. Elle vous attend dans « À envoyer ».
+          </p>
+        )}
+        {ok === "envoyee" && (
+          <p className="succes">
+            Facture envoyée, avec le PDF en pièce jointe. Vous en avez reçu une copie.
+          </p>
+        )}
+        {ok === "remise" && (
+          <p className="succes">
+            Notée comme remise en main propre. Aucun email n&apos;est parti.
+          </p>
+        )}
+        {erreur === "deja_transmise" && (
+          <p className="alerte">
+            Cette facture a déjà été transmise. Rechargez la page.
+          </p>
+        )}
+        {erreur === "introuvable" && (
+          <p className="alerte">Facture introuvable.</p>
         )}
         {ok === "rien" && (
           <p className="succes">
@@ -371,6 +424,117 @@ export default async function Factures({
           </div>
         </form>
 
+        {aEnvoyer.length > 0 && (
+          <>
+            <h2 style={{ fontSize: 25, margin: "46px 0 6px" }}>
+              À envoyer
+              <span className="pastille-compte">{aEnvoyer.length}</span>
+            </h2>
+            <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
+              Numérotées et définitives, mais la famille ne les a pas encore reçues.
+              Elles comptent déjà dans le livre des recettes, et le délai de paiement
+              court depuis leur émission.
+            </p>
+
+            <div style={{ display: "grid", gap: 10, margin: "16px 0 34px" }}>
+              {aEnvoyer.map((f) => {
+                const age = jours(f.emise_le);
+                const tarde = age >= 3;
+                return (
+                  <div
+                    key={f.id}
+                    className={tarde ? "carte carte--attente" : "carte"}
+                    style={tarde ? undefined : { boxShadow: "inset 3px 0 0 var(--foret)" }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 16,
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontFamily: "var(--serif)", fontSize: 21, color: "var(--foret)" }}>
+                          {f.dossiers?.eleve_prenom ?? f.dossiers?.prenom ?? "—"}
+                        </p>
+                        <p
+                          style={{
+                            marginTop: 5,
+                            fontSize: 13.5,
+                            color: tarde ? "var(--or-texte)" : "var(--texte-gris)",
+                            fontWeight: tarde ? 600 : 400,
+                          }}
+                        >
+                          {f.numero} · {moisLong(f.periode_debut)} ·{" "}
+                          {age === 0
+                            ? "émise aujourd'hui"
+                            : `émise il y a ${age} jour${age > 1 ? "s" : ""}${
+                                tarde ? ", jamais envoyée" : ""
+                              }`}
+                        </p>
+                      </div>
+                      <p
+                        style={{
+                          fontFamily: "var(--serif)",
+                          fontSize: 25,
+                          color: "var(--foret)",
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        {euros(f.total_cents)}
+                      </p>
+                    </div>
+
+                    <form action={envoyerFacture} style={{ marginTop: 14 }}>
+                      <input type="hidden" name="id" value={f.id} />
+                      <label htmlFor={`msg-${f.id}`} style={etiquette}>
+                        Un mot dans l&apos;email (facultatif)
+                      </label>
+                      <input
+                        id={`msg-${f.id}`}
+                        name="message"
+                        type="text"
+                        maxLength={1000}
+                        placeholder="Merci pour ce trimestre."
+                        style={saisie}
+                      />
+                      <div className="actions-ligne" style={{ justifyContent: "flex-start", marginTop: 12 }}>
+                        <button type="submit" className="bouton bouton--principal bouton--compact">
+                          Envoyer par email
+                        </button>
+                        <Link
+                          href={`/factures/${f.id}`}
+                          target="_blank"
+                          className="bouton bouton--secondaire bouton--compact"
+                        >
+                          Visualiser
+                        </Link>
+                        <a
+                          href={`/admin/factures/${f.id}/pdf`}
+                          className="bouton bouton--secondaire bouton--compact"
+                        >
+                          Télécharger
+                        </a>
+                      </div>
+                    </form>
+
+                    <form action={marquerRemise} style={{ marginTop: 10 }}>
+                      <input type="hidden" name="id" value={f.id} />
+                      <button type="submit" className="lien-bouton">
+                        remise en main propre, ne rien envoyer
+                      </button>
+                    </form>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        <h2 style={{ fontSize: 25, margin: "46px 0 14px" }}>Historique</h2>
+
         <div className="tableau-enveloppe tableau-defilant">
           {liste.length === 0 ? (
             <p style={{ padding: 28, fontSize: 15, color: "var(--texte-doux)" }}>
@@ -393,7 +557,15 @@ export default async function Factures({
                     <td>
                       <strong>{f.numero ?? "—"}</strong>
                       <br />
-                      <span className="etiquette">{LIBELLE[f.statut] ?? f.statut}</span>
+                      <span
+                        className={
+                          etatFacture(f) === "À envoyer"
+                            ? "etiquette etiquette--attente"
+                            : "etiquette"
+                        }
+                      >
+                        {etatFacture(f)}
+                      </span>
                     </td>
                     <td>
                       {f.dossiers?.eleve_prenom ?? "—"}
@@ -432,7 +604,7 @@ export default async function Factures({
                             <Link href={`/admin/factures/${f.id}/modifier`}>
                               modifier
                             </Link>
-                            <form action={emettreEtEnvoyer}>
+                            <form action={emettre.bind(null, "envoyer")}>
                               <input type="hidden" name="id" value={f.id} />
                               <button type="submit" className="lien-bouton">
                                 émettre et envoyer

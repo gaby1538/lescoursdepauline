@@ -6,6 +6,10 @@ import { exigerAdmin } from "@/lib/admin";
 import { clientAdmin } from "@/lib/supabase";
 import { creneauLong, moisLong } from "@/lib/dates";
 import { factureEmise } from "@/lib/emails";
+import { pdfDeFacture } from "@/lib/facturePdf";
+
+/** Ce que le livre des recettes accepte comme mode de règlement. */
+const MODES = ["virement", "wero", "especes", "cheque", "autre"];
 
 const FACTURABLE = ["effectuee", "annulee_hors_delai", "absent"];
 
@@ -257,21 +261,27 @@ export async function supprimerLigne(formulaire: FormData): Promise<void> {
   redirect(`/admin/factures/${facture}/modifier?ok=1`);
 }
 
-export async function emettreEtEnvoyer(formulaire: FormData): Promise<void> {
+/**
+ * Émettre : la facture prend son numéro et se fige. C'est un acte
+ * comptable, et le seul geste du site qu'on ne peut pas défaire.
+ *
+ * L'envoi est séparé. Émettre sans envoyer laisse la facture dans
+ * « À envoyer », d'où Pauline l'expédiera, la téléchargera, ou la
+ * déclarera remise en main propre. Aucun email ne part d'ici sans
+ * qu'elle l'ait demandé.
+ */
+export async function emettre(
+  intention: string,
+  formulaire: FormData
+): Promise<void> {
   await exigerAdmin();
 
   const id = String(formulaire.get("id") ?? "");
   if (!id) retour();
 
-  // En cas de refus, on revient là où le numéro a été saisi.
-  const surErreur = (parametre: string): never => {
-    const demandee = String(formulaire.get("retour") ?? "");
-    if (/^\/admin\/factures\/[0-9a-f-]{36}\/modifier$/.test(demandee)) {
-      revalidatePath(demandee);
-      redirect(`${demandee}${parametre}`);
-    }
-    retour(parametre);
-  };
+  const surErreur = (q: string): never => retour(`/admin/factures/${id}/modifier${q}`);
+
+  if (!(await estBrouillon(id))) surErreur("?erreur=emise");
 
   const supabase = clientAdmin();
 
@@ -295,60 +305,151 @@ export async function emettreEtEnvoyer(formulaire: FormData): Promise<void> {
     surErreur(doublon ? "?erreur=doublon" : "?erreur=numero");
   }
 
+  await supabase.from("journal").insert({
+    acteur: "pauline",
+    objet: "facture",
+    objet_id: id,
+    action: "emise",
+    details: { numero },
+  });
+
+  revalidatePath("/admin/factures");
+  revalidatePath(`/factures/${id}`);
+
+  if (intention !== "envoyer") {
+    redirect("/admin/factures?ok=emise");
+  }
+
+  await expedier(id, String(formulaire.get("message") ?? ""));
+}
+
+/**
+ * L'envoi proprement dit, depuis « À envoyer » ou juste après
+ * l'émission. Le mot ajouté par Pauline est conservé : c'est ce que la
+ * famille a lu.
+ */
+async function expedier(id: string, mot: string): Promise<never> {
+  const supabase = clientAdmin();
+
   const { data: facture } = await supabase
     .from("factures")
     .select(
-      "id, numero, total_cents, echeance_le, periode_debut, dossiers (prenom, email)"
+      "id, numero, total_cents, echeance_le, periode_debut, envoyee_le, remise_le, dossiers (prenom, email)"
     )
     .eq("id", id)
     .maybeSingle();
+
+  const dossier = facture?.dossiers as unknown as
+    | { prenom: string | null; email: string }
+    | null;
+
+  if (!facture || !dossier) retour("?erreur=introuvable");
+  if (facture.envoyee_le || facture.remise_le) retour("?erreur=deja_transmise");
 
   const { count } = await supabase
     .from("lignes_facture")
     .select("id", { count: "exact", head: true })
     .eq("facture_id", id);
 
-  const dossier = facture?.dossiers as unknown as
-    | { prenom: string | null; email: string }
-    | null;
+  const { data: reglages } = await supabase
+    .from("parametres")
+    .select("email_contact")
+    .eq("id", true)
+    .maybeSingle();
 
-  if (facture && dossier) {
-    const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com";
-    const resultat = await factureEmise({
-      destinataire: dossier.email,
-      prenom: dossier.prenom ?? "",
-      numero: facture.numero ?? String(numero),
-      totalCentimes: facture.total_cents,
-      echeance: facture.echeance_le
-        ? new Date(facture.echeance_le).toLocaleDateString("fr-FR")
-        : "",
-      lien: `${site}/factures/${facture.id}`,
-      heures: count ?? 0,
-      periode: moisLong(facture.periode_debut),
-    });
+  const message = mot.trim().slice(0, 1000) || null;
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com";
 
-    if (resultat.ok) {
-      await supabase
-        .from("factures")
-        .update({ envoyee_le: new Date().toISOString() })
-        .eq("id", id);
-    }
-
-    await supabase.from("journal").insert({
-      acteur: "pauline",
-      objet: "facture",
-      objet_id: id,
-      action: resultat.ok ? "envoyee" : "envoi_echoue",
-      details: { numero: facture.numero, detail: resultat.detail },
-    });
-
-    retour(resultat.ok ? "?ok=envoyee" : "?erreur=envoi");
+  // Le PDF part avec l'email : beaucoup de familles classent la pièce
+  // jointe et ne cliquent jamais sur le lien.
+  let piece: { nom: string; contenu: Buffer } | null = null;
+  try {
+    piece = await pdfDeFacture(id);
+  } catch (e) {
+    console.error("PDF de facture", e);
   }
 
-  retour("?ok=emise");
+  const resultat = await factureEmise({
+    destinataire: dossier.email,
+    prenom: dossier.prenom ?? "",
+    numero: facture.numero ?? "",
+    totalCentimes: facture.total_cents,
+    echeance: facture.echeance_le
+      ? new Date(facture.echeance_le).toLocaleDateString("fr-FR")
+      : "",
+    lien: `${site}/factures/${facture.id}`,
+    heures: count ?? 0,
+    periode: moisLong(facture.periode_debut),
+    message,
+    // Pauline reçoit la même chose que la famille : la facture envoyée
+    // se retrouve dans sa messagerie, avec sa date.
+    copie: reglages?.email_contact ?? null,
+    piece,
+  });
+
+  if (resultat.ok) {
+    await supabase
+      .from("factures")
+      .update({
+        envoyee_le: new Date().toISOString(),
+        message_accompagnement: message,
+      })
+      .eq("id", id);
+  }
+
+  await supabase.from("journal").insert({
+    acteur: "pauline",
+    objet: "facture",
+    objet_id: id,
+    action: resultat.ok ? "envoyee" : "envoi_echoue",
+    details: { numero: facture.numero, detail: resultat.detail, piece: Boolean(piece) },
+  });
+
+  revalidatePath("/admin/factures");
+  retour(resultat.ok ? "?ok=envoyee" : "?erreur=envoi");
 }
 
-const MODES = ["virement", "wero", "cheque", "especes", "autre"];
+/** Envoyer une facture déjà émise, depuis la liste « À envoyer ». */
+export async function envoyerFacture(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+  const id = String(formulaire.get("id") ?? "");
+  if (!id) retour();
+  await expedier(id, String(formulaire.get("message") ?? ""));
+}
+
+/**
+ * Remise autrement : en main propre, par courrier, depuis sa propre
+ * boîte. La facture sort de « À envoyer » sans qu'aucun email parte.
+ */
+export async function marquerRemise(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const id = String(formulaire.get("id") ?? "");
+  if (!id) retour();
+
+  const supabase = clientAdmin();
+
+  const { error } = await supabase
+    .from("factures")
+    .update({ remise_le: new Date().toISOString() })
+    .eq("id", id)
+    .is("envoyee_le", null);
+
+  if (error) {
+    console.error("remise en main propre", error);
+    retour("?erreur=enregistrement");
+  }
+
+  await supabase.from("journal").insert({
+    acteur: "pauline",
+    objet: "facture",
+    objet_id: id,
+    action: "remise_en_main_propre",
+  });
+
+  retour("?ok=remise");
+}
+
 
 export async function marquerPayee(formulaire: FormData): Promise<void> {
   await exigerAdmin();

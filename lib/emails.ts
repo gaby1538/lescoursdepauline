@@ -21,7 +21,8 @@ const API = "https://api.resend.com/emails";
 
 export type ResultatEnvoi = { ok: boolean; detail: string };
 
-export type PieceJointe = { nom: string; contenu: string };
+/** Le contenu est du texte, ou des octets pour un PDF. */
+export type PieceJointe = { nom: string; contenu: string | Buffer };
 
 async function envoyer(options: {
   destinataire: string;
@@ -29,6 +30,8 @@ async function envoyer(options: {
   html: string;
   repondreA?: string;
   pieces?: PieceJointe[];
+  /** Adresse mise en copie : Pauline garde dans sa boîte ce que la famille a reçu. */
+  copie?: string | null;
 }): Promise<ResultatEnvoi> {
   const cle = process.env.RESEND_API_KEY;
   const expediteur =
@@ -53,11 +56,16 @@ async function envoyer(options: {
         subject: options.sujet,
         html: options.html,
         reply_to: options.repondreA ?? IDENTITE.email,
+        ...(options.copie && options.copie !== options.destinataire
+          ? { cc: [options.copie] }
+          : {}),
         ...(options.pieces && options.pieces.length > 0
           ? {
               attachments: options.pieces.map((p) => ({
                 filename: p.nom,
-                content: Buffer.from(p.contenu, "utf8").toString("base64"),
+                content: Buffer.isBuffer(p.contenu)
+                  ? p.contenu.toString("base64")
+                  : Buffer.from(p.contenu, "utf8").toString("base64"),
               })),
             }
           : {}),
@@ -366,6 +374,10 @@ export async function factureEmise(options: {
   lien: string;
   heures: number;
   periode: string;
+  /** Le mot ajouté par Pauline, relu à l'écran avant l'envoi. */
+  message?: string | null;
+  copie?: string | null;
+  piece?: PieceJointe | null;
 }): Promise<ResultatEnvoi> {
   const montant = `${(options.totalCentimes / 100).toLocaleString("fr-FR", {
     minimumFractionDigits: options.totalCentimes % 100 === 0 ? 0 : 2,
@@ -373,6 +385,8 @@ export async function factureEmise(options: {
 
   return envoyer({
     destinataire: options.destinataire,
+    copie: options.copie,
+    pieces: options.piece ? [options.piece] : undefined,
     sujet: `Facture ${options.numero} — Les cours de Pauline`,
     html: gabarit(
       `Facture ${options.numero}`,
@@ -382,9 +396,20 @@ export async function factureEmise(options: {
          soit <strong>${montant}</strong>.</p>
        <p style="${P}">Elle est à régler avant le <strong>${options.echeance}</strong>,
          par virement ou par Wero. Les coordonnées figurent sur la facture.</p>
+       ${
+         options.message
+           ? `<p style="${P}">${echapper(options.message).replace(/\n/g, "<br>")}</p>`
+           : ""
+       }
+       ${
+         options.piece
+           ? `<p style="${P}font-size:13px;color:#55604f;">La facture est jointe à ce
+                message, en PDF.</p>`
+           : ""
+       }
        ${bouton(options.lien, "Voir ma facture")}
-       <p style="${P}font-size:13px;color:#55604f;">La facture reste disponible dans
-         votre espace élève, avec toutes les précédentes.</p>
+       <p style="${P}font-size:13px;color:#55604f;">Elle reste disponible dans votre
+         espace élève, avec toutes les précédentes.</p>
        <p style="${P}">Merci,<br>Pauline</p>`
     ),
   });

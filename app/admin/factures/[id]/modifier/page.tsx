@@ -4,7 +4,7 @@ import { clientAdmin } from "@/lib/supabase";
 import { euros } from "@/lib/constantes";
 import { moisLong } from "@/lib/dates";
 import { etiquette, saisie } from "@/components/Champs";
-import { enregistrerFacture, supprimerLigne, emettreEtEnvoyer } from "../../actions";
+import { enregistrerFacture, supprimerLigne, emettre } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -304,7 +304,7 @@ export default async function ModifierFacture({
         )}
 
         {brouillon && (
-          <form action={emettreEtEnvoyer} className="carte" style={{ marginTop: 18 }}>
+          <form className="carte" style={{ marginTop: 18 }}>
             <input type="hidden" name="id" value={id} />
             <input
               type="hidden"
@@ -339,13 +339,55 @@ export default async function ModifierFacture({
               numéro plus avancé, la série reprendra à partir de celui-là.
             </p>
 
-            <button
-              type="submit"
-              className="bouton bouton--or bouton--compact"
-              style={{ marginTop: 16 }}
-            >
-              Émettre et envoyer
-            </button>
+            <div style={{ marginTop: 20 }}>
+              <label htmlFor="message" style={etiquette}>
+                Un mot dans l&apos;email (facultatif)
+              </label>
+              <textarea
+                id="message"
+                name="message"
+                rows={2}
+                maxLength={1000}
+                placeholder="Merci pour ce trimestre, Camille a beaucoup progressé."
+                style={{ ...saisie, minHeight: 0, padding: "11px 14px", resize: "vertical" }}
+              />
+              <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.6, color: "var(--texte-gris)" }}>
+                Il s&apos;ajoute au message type, qui garde le montant, l&apos;échéance
+                et la facture en pièce jointe. Vous recevez une copie de ce qui part.
+              </p>
+            </div>
+
+            <div className="actions-ligne" style={{ marginTop: 18, justifyContent: "flex-start" }}>
+              <button
+                type="submit"
+                formAction={emettre.bind(null, "envoyer")}
+                className="bouton bouton--or bouton--compact"
+              >
+                Émettre et envoyer
+              </button>
+              <button
+                type="submit"
+                formAction={emettre.bind(null, "plus-tard")}
+                className="bouton bouton--secondaire bouton--compact"
+              >
+                Émettre, j&apos;enverrai plus tard
+              </button>
+              <a
+                href={`/factures/${id}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ alignSelf: "center", fontSize: 13.5 }}
+              >
+                Visualiser
+              </a>
+            </div>
+
+            <p style={{ marginTop: 12, fontSize: 13, lineHeight: 1.65, color: "var(--texte-gris)" }}>
+              Les deux attribuent le numéro et figent la facture. Le second
+              n&apos;envoie rien : elle rejoint <strong>À envoyer</strong>, d&apos;où
+              vous l&apos;expédierez, la téléchargerez, ou la déclarerez remise en
+              main propre.
+            </p>
           </form>
         )}
       </div>
