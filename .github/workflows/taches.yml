@@ -1,19 +1,29 @@
-# Appelle /api/taches toutes les dix minutes : garde le projet Supabase
-# éveillé et envoie les rappels avant les séances.
+# Appelle /api/taches : garde le projet Supabase éveillé, envoie les
+# rappels avant les séances, le récapitulatif du lundi et la sauvegarde
+# mensuelle.
 #
-# Deux secrets à créer dans le dépôt, Settings → Secrets and variables
-# → Actions :
-#   URL_SITE   — https://lescoursdepauline.com (sans barre finale)
-#   CLE_TACHES — la même valeur que la variable CLE_TACHES de Vercel
+# PLANIFICATION DÉSACTIVÉE, le 14 novembre 2026.
 #
-# GitHub suspend les tâches planifiées d'un dépôt resté soixante jours
-# sans activité. Un commit, même minime, les relance.
+# GitHub dépriorise les tâches planifiées des comptes gratuits. Mesuré
+# sur ce dépôt : des écarts de quatre à huit heures entre deux
+# exécutions, pour un intervalle demandé de dix minutes. Acceptable
+# pour un récapitulatif hebdomadaire, rédhibitoire pour un rappel censé
+# partir trente minutes avant le cours.
+#
+# C'est cron-job.org qui appelle désormais l'adresse toutes les cinq
+# minutes, et qui prévient par email en cas d'échec.
+#
+# Ce fichier reste en place comme filet : l'onglet Actions permet de
+# lancer la tâche à la main (Run workflow) si cron-job.org tombe. Pour
+# la réactiver, rétablir la ligne « schedule » ci-dessous et vérifier
+# que le secret CLE_TACHES correspond bien à la variable de Vercel,
+# qui a changé depuis.
 
 name: Tâches régulières
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"
+  # schedule:
+  #   - cron: "*/10 * * * *"
   workflow_dispatch:
 
 jobs:
