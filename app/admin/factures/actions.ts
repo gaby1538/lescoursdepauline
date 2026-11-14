@@ -616,3 +616,120 @@ export async function creerFactureManuelle(formulaire: FormData): Promise<void> 
   revalidatePath("/admin/factures");
   redirect(`/admin/factures/${facture.id}/modifier?ok=nouvelle`);
 }
+
+/** Une ligne telle que l'écran d'édition la manipule. */
+export type LigneVive = {
+  id: string;
+  description: string;
+  quantite: number;
+  prix_unitaire_cents: number;
+  total_cents: number;
+};
+
+async function exigerBrouillon(factureId: string): Promise<void> {
+  if (!(await estBrouillon(factureId))) {
+    throw new Error("FACTURE_EMISE");
+  }
+}
+
+/**
+ * Les trois gestes de l'édition vivante.
+ *
+ * Chacun porte sur une ligne et rend la main tout de suite : l'écran
+ * n'a rien à recharger, et le total se recalcule chez lui. Une ligne
+ * ajoutée reçoit son identifiant définitif dès sa création, si bien que
+ * les modifications qui suivent sont de simples mises à jour — pas de
+ * réconciliation d'identifiants provisoires au retour.
+ */
+export async function ajouterLigneFacture(
+  factureId: string,
+  description: string,
+  quantite: number,
+  prixCents: number
+): Promise<LigneVive> {
+  await exigerAdmin();
+  await exigerBrouillon(factureId);
+
+  const supabase = clientAdmin();
+
+  const { count } = await supabase
+    .from("lignes_facture")
+    .select("id", { count: "exact", head: true })
+    .eq("facture_id", factureId);
+
+  const total = Math.round(quantite * prixCents);
+
+  const { data, error } = await supabase
+    .from("lignes_facture")
+    .insert({
+      facture_id: factureId,
+      description: description.slice(0, 300),
+      quantite,
+      prix_unitaire_cents: prixCents,
+      total_cents: total,
+      ordre: count ?? 0,
+    })
+    .select("id, description, quantite, prix_unitaire_cents, total_cents")
+    .single();
+
+  if (error || !data) {
+    console.error("ajout de ligne", error);
+    throw new Error("AJOUT");
+  }
+
+  revalidatePath(`/factures/${factureId}`);
+  return { ...data, quantite: Number(data.quantite) };
+}
+
+export async function majLigneFacture(
+  factureId: string,
+  ligneId: string,
+  description: string,
+  quantite: number,
+  prixCents: number
+): Promise<number> {
+  await exigerAdmin();
+  await exigerBrouillon(factureId);
+
+  const total = Math.round(quantite * prixCents);
+
+  const { error } = await clientAdmin()
+    .from("lignes_facture")
+    .update({
+      description: description.slice(0, 300),
+      quantite,
+      prix_unitaire_cents: prixCents,
+      total_cents: total,
+    })
+    .eq("id", ligneId)
+    .eq("facture_id", factureId);
+
+  if (error) {
+    console.error("mise à jour de ligne", error);
+    throw new Error("MAJ");
+  }
+
+  revalidatePath(`/factures/${factureId}`);
+  return total;
+}
+
+export async function retirerLigneFacture(
+  factureId: string,
+  ligneId: string
+): Promise<void> {
+  await exigerAdmin();
+  await exigerBrouillon(factureId);
+
+  const { error } = await clientAdmin()
+    .from("lignes_facture")
+    .delete()
+    .eq("id", ligneId)
+    .eq("facture_id", factureId);
+
+  if (error) {
+    console.error("retrait de ligne", error);
+    throw new Error("RETRAIT");
+  }
+
+  revalidatePath(`/factures/${factureId}`);
+}

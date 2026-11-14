@@ -1388,3 +1388,156 @@ table.liste .droite { text-align: right; }
   align-items: center;
   margin-left: 6px;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Édition d'une facture : les lignes à gauche, l'aperçu à droite     */
+/* ------------------------------------------------------------------ */
+
+.edition {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  margin-top: 28px;
+  align-items: flex-start;
+}
+.edition__gauche { flex: 999 1 520px; min-width: 0; }
+.edition__apercu { flex: 1 1 320px; min-width: 0; position: sticky; top: 90px; }
+
+.lignes__tete {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.lignes__etat {
+  font-size: 13px;
+  color: var(--texte-gris);
+  white-space: nowrap;
+}
+
+.ligne-vive {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  padding: 14px 16px;
+  background: var(--carte);
+  border: 1px solid var(--bordure);
+  border-radius: 6px;
+}
+.ligne-vive__desc { flex: 999 1 220px; min-width: 0; }
+.ligne-vive__petit { flex: 0 0 92px; }
+.ligne-vive__total {
+  flex: 0 0 96px;
+  margin-bottom: 9px;
+  text-align: right;
+  font-family: var(--serif);
+  font-size: 19px;
+  color: var(--foret);
+  font-variant-numeric: tabular-nums;
+}
+.ligne-vive__retirer {
+  flex: 0 0 auto;
+  margin-bottom: 7px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--bordure);
+  border-radius: 999px;
+  background: var(--carte);
+  color: var(--texte-gris);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ligne-vive__retirer:hover {
+  border-color: var(--or-clair);
+  background: #fdf6e4;
+  color: var(--or-texte);
+}
+
+.lignes__ajouts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 14px;
+}
+.raccourci {
+  padding: 8px 15px;
+  border: 1px solid var(--bordure);
+  border-radius: 999px;
+  background: var(--carte);
+  font: inherit;
+  font-size: 13px;
+  color: var(--or-texte);
+  cursor: pointer;
+}
+.raccourci:hover { border-color: var(--or-clair); background: #fdf6e4; }
+
+.lignes__total {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--bordure);
+}
+.lignes__total span {
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--texte-gris);
+  font-weight: 600;
+}
+.lignes__total strong {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 32px;
+  color: var(--foret);
+  font-variant-numeric: tabular-nums;
+}
+
+.apercu-facture {
+  padding: 24px 22px;
+  background: #fff;
+  border: 1px solid var(--bordure);
+  border-radius: 7px;
+}
+.apercu-facture__tete {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.apercu-facture__marque {
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.25;
+  color: var(--foret);
+}
+.apercu-facture__marque span { color: var(--or-texte); }
+.apercu-facture__etat {
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--texte-gris);
+}
+.apercu-facture__numero {
+  margin-top: 3px;
+  font-family: var(--serif);
+  font-size: 20px;
+  color: var(--texte-gris);
+  font-variant-numeric: tabular-nums;
+}
+.apercu-facture__note {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--texte-gris);
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  .edition__apercu { position: static; }
+}

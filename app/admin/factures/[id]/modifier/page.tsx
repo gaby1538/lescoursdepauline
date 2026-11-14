@@ -4,7 +4,8 @@ import { clientAdmin } from "@/lib/supabase";
 import { euros } from "@/lib/constantes";
 import { moisLong } from "@/lib/dates";
 import { etiquette, saisie } from "@/components/Champs";
-import { enregistrerFacture, supprimerLigne, emettre } from "../../actions";
+import { enregistrerFacture, emettre } from "../../actions";
+import Lignes from "./Lignes";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,20 @@ export default async function ModifierFacture({
       .maybeSingle(),
     supabase.rpc("numero_suggere"),
   ]);
+
+  // Le tarif de l'élève sert de valeur par défaut au raccourci
+  // « Heure de cours » : saisir le bon prix est le geste le plus
+  // fréquent, autant le proposer.
+  const { data: tarif } = await supabase
+    .from("reservations")
+    .select("prix_cents")
+    .eq("dossier_id", facture.dossier_id)
+    .not("prix_cents", "is", null)
+    .order("debut", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const tarifHoraire = tarif?.prix_cents ?? 4000;
 
   const brouillon = facture.statut === "brouillon";
   const defaut = `${client?.prenom ?? ""} ${client?.nom ?? ""}`.trim();
@@ -101,112 +116,86 @@ export default async function ModifierFacture({
             se modifie plus — c&apos;est ce qu&apos;exige une numérotation continue.
           </p>
         ) : (
-          <form action={enregistrerFacture} style={{ marginTop: 28 }}>
-            <input type="hidden" name="id" value={id} />
+          <>
+          <div className="edition">
+            <div className="edition__gauche">
+              <Lignes
+                factureId={id}
+                initiales={(lignes ?? []).map((l) => ({
+                  id: l.id,
+                  description: l.description ?? "",
+                  quantite: Number(l.quantite),
+                  prix_unitaire_cents: l.prix_unitaire_cents,
+                  total_cents: l.total_cents,
+                }))}
+                tarifHoraireCents={tarifHoraire}
+              />
+            </div>
 
-            <h2 style={{ fontSize: 23, marginBottom: 6 }}>Les lignes</h2>
-            <p style={{ fontSize: 14.5, lineHeight: 1.65, color: "var(--texte-doux)" }}>
-              Modifiez le libellé, la quantité ou le prix. Un montant négatif passe une
-              remise. Le total se recalcule tout seul.
-            </p>
-
-            <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
-              {(lignes ?? []).map((l) => (
-                <div key={l.id} className="carte ligne-facture">
-                  <input type="hidden" name="ligne_id" value={l.id} />
-                  <div className="ligne-facture__desc">
-                    <label htmlFor={`d-${l.id}`} style={etiquette}>
-                      Prestation
-                    </label>
-                    <input
-                      id={`d-${l.id}`}
-                      name="description"
-                      type="text"
-                      defaultValue={l.description}
-                      style={saisie}
-                    />
+            <aside className="edition__apercu">
+              <p className="surtitre" style={{ marginBottom: 10 }}>
+                Aperçu
+              </p>
+              <div className="apercu-facture">
+                <div className="apercu-facture__tete">
+                  <p className="apercu-facture__marque">
+                    Les cours de <span>Pauline</span>
+                  </p>
+                  <div style={{ textAlign: "right" }}>
+                    <p className="apercu-facture__etat">Brouillon</p>
+                    <p className="apercu-facture__numero">
+                      {(suggestion as string | null) ?? "—"}
+                    </p>
                   </div>
-                  <div className="ligne-facture__petit">
-                    <label htmlFor={`q-${l.id}`} style={etiquette}>
-                      Quantité
-                    </label>
-                    <input
-                      id={`q-${l.id}`}
-                      name="quantite"
-                      type="text"
-                      inputMode="decimal"
-                      defaultValue={String(Number(l.quantite))}
-                      style={saisie}
-                    />
-                  </div>
-                  <div className="ligne-facture__petit">
-                    <label htmlFor={`p-${l.id}`} style={etiquette}>
-                      Prix unitaire (€)
-                    </label>
-                    <input
-                      id={`p-${l.id}`}
-                      name="prix"
-                      type="text"
-                      inputMode="decimal"
-                      defaultValue={(l.prix_unitaire_cents / 100).toString()}
-                      style={saisie}
-                    />
-                  </div>
-                  <p className="ligne-facture__total">{euros(l.total_cents)}</p>
                 </div>
-              ))}
-
-              {(lignes ?? []).length === 0 && (
-                <p style={{ fontSize: 15, color: "var(--texte-doux)" }}>
-                  Aucune ligne. Ajoutez-en une ci-dessous.
+                <p className="apercu-facture__note">
+                  Numéro et dates attribués à l&apos;émission
                 </p>
-              )}
-            </div>
 
-            <div
-              className="carte ligne-facture"
-              style={{ marginTop: 12, background: "var(--creme-fonce)" }}
-            >
-              <div className="ligne-facture__desc">
-                <label htmlFor="nd" style={etiquette}>
-                  Ajouter une ligne
-                </label>
-                <input
-                  id="nd"
-                  name="nouvelle_description"
-                  type="text"
-                  placeholder="Stage de révision, remise, déplacement…"
-                  style={saisie}
-                />
+                <p
+                  className="surtitre"
+                  style={{ marginTop: 18, marginBottom: 6, fontSize: 10.5 }}
+                >
+                  Facturé à
+                </p>
+                <p style={{ fontSize: 14, lineHeight: 1.6 }}>
+                  {facture.destinataire_nom || defaut || "—"}
+                  {facture.destinataire_adresse
+                    ? String(facture.destinataire_adresse)
+                        .split("\n")
+                        .map((ligne: string) => (
+                          <span key={ligne}>
+                            <br />
+                            {ligne}
+                          </span>
+                        ))
+                    : null}
+                  <br />
+                  <span style={{ color: "var(--texte-gris)" }}>{client?.email}</span>
+                </p>
+
+                <p style={{ marginTop: 14, fontSize: 13, color: "var(--texte-gris)" }}>
+                  {client?.eleve_prenom} · {moisLong(facture.periode_debut)}
+                </p>
+
+                <p style={{ marginTop: 18, fontSize: 12.5, color: "var(--texte-gris)" }}>
+                  Les lignes et le total figurent à gauche, à jour à la frappe. Pour
+                  voir la facture entière telle qu&apos;elle partira,{" "}
+                  <Link href={`/factures/${id}`} target="_blank">
+                    visualisez-la
+                  </Link>
+                  .
+                </p>
+
+                <p style={{ marginTop: 14, fontSize: 11, color: "var(--texte-gris)" }}>
+                  TVA non applicable, article 293 B du CGI.
+                </p>
               </div>
-              <div className="ligne-facture__petit">
-                <label htmlFor="nq" style={etiquette}>
-                  Quantité
-                </label>
-                <input
-                  id="nq"
-                  name="nouvelle_quantite"
-                  type="text"
-                  inputMode="decimal"
-                  defaultValue="1"
-                  style={saisie}
-                />
-              </div>
-              <div className="ligne-facture__petit">
-                <label htmlFor="np" style={etiquette}>
-                  Prix unitaire (€)
-                </label>
-                <input
-                  id="np"
-                  name="nouveau_prix"
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="-10 pour une remise"
-                  style={saisie}
-                />
-              </div>
-              <p className="ligne-facture__total">&nbsp;</p>
-            </div>
+            </aside>
+          </div>
+
+          <form action={enregistrerFacture} style={{ marginTop: 40 }}>
+            <input type="hidden" name="id" value={id} />
 
             <h2 style={{ fontSize: 23, margin: "40px 0 6px" }}>Adapter cette facture</h2>
             <p style={{ fontSize: 14.5, lineHeight: 1.65, color: "var(--texte-doux)" }}>
@@ -282,25 +271,7 @@ export default async function ModifierFacture({
               Enregistrer
             </button>
           </form>
-        )}
-
-        {brouillon && (lignes ?? []).length > 0 && (
-          <div className="carte" style={{ marginTop: 28 }}>
-            <p className="surtitre" style={{ marginBottom: 10 }}>
-              Supprimer une ligne
-            </p>
-            <div className="actions-ligne" style={{ justifyContent: "flex-start" }}>
-              {(lignes ?? []).map((l) => (
-                <form key={l.id} action={supprimerLigne}>
-                  <input type="hidden" name="id" value={l.id} />
-                  <input type="hidden" name="facture" value={id} />
-                  <button type="submit" className="lien-bouton">
-                    {l.description.slice(0, 40)} ✕
-                  </button>
-                </form>
-              ))}
-            </div>
-          </div>
+          </>
         )}
 
         {brouillon && (
