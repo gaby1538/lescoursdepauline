@@ -1281,6 +1281,22 @@ table.liste .droite { text-align: right; }
   max-width: 640px;
 }
 
+/* Un repli qui se tient seul, sans carte au-dessus de lui : la
+   facturation manuelle sert rarement, elle n'a pas à occuper un bloc
+   entier de la page. */
+.repli-discret--bloc {
+  margin: 0 0 28px;
+  padding-top: 0;
+  border-top: 0;
+}
+.repli-discret__corps--large {
+  max-width: none;
+  padding: 22px 24px 24px;
+  background: var(--creme-fonce);
+  border: 1px solid var(--bordure-douce);
+  border-radius: 8px;
+}
+
 /* Choisir combien d'heures garder, dans le volet d'annulation. */
 .annulation__choix {
   padding-bottom: 14px;
