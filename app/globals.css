@@ -812,8 +812,9 @@ table.liste .droite { text-align: right; }
   min-width: 26px;
   padding: 2px 9px;
   border-radius: 999px;
-  background: var(--or-clair);
-  color: var(--foret);
+  background: var(--creme-fonce);
+  border: 1px solid var(--bordure);
+  color: var(--texte-gris);
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 600;
@@ -1556,4 +1557,274 @@ table.liste .droite { text-align: right; }
 
 @media (max-width: 900px) {
   .edition__apercu { position: static; }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Facturation : les gestes de la liste                               */
+/*                                                                     */
+/*  Les boutons du site sont de grands rectangles : très bien pour     */
+/*  « Réserver », trop lourds quand une carte en porte quatre. Ici des */
+/*  pastilles, et une couleur qui dit la portée du geste — vert pour   */
+/*  ce qui se défait, or pour ce qui attribue un numéro et fige la     */
+/*  facture pour de bon.                                               */
+/* ------------------------------------------------------------------ */
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 17px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.action--foret {
+  background: var(--foret);
+  border-color: var(--foret);
+  color: var(--creme);
+  font-weight: 500;
+}
+.action--foret:hover { background: #0e2a18; color: var(--creme); }
+
+.action--or {
+  background: var(--or);
+  border-color: var(--or);
+  color: #fcfaf5;
+  font-weight: 500;
+}
+.action--or:hover { background: #96670f; color: #fcfaf5; }
+
+.action--contour {
+  background: var(--carte);
+  border-color: var(--bordure);
+  color: var(--or-texte);
+}
+.action--contour:hover { border-color: var(--or-clair); background: #fdf6e4; }
+
+.action--grand { padding: 13px 26px; font-size: 15px; }
+
+/* Le geste de côté : défaire, ou déclarer qu'on s'en est chargé
+   soi-même. Il est au bout de la rangée, sans cadre. */
+.action--discret {
+  margin-left: auto;
+  padding: 9px 4px;
+  border: 0;
+  background: none;
+  color: var(--texte-gris);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.action--discret:hover { color: var(--foret); }
+
+.carte-facture {
+  padding: 20px 22px;
+  background: var(--carte);
+  border: 1px solid var(--bordure);
+  border-radius: 7px;
+}
+.carte-facture--brouillon {
+  border-color: var(--or-clair);
+  box-shadow: inset 3px 0 0 var(--or-clair);
+}
+.carte-facture--envoyer { box-shadow: inset 3px 0 0 var(--foret); }
+/* Émise il y a plusieurs jours et toujours pas transmise : la famille
+   attend un document qu'elle n'a jamais reçu. */
+.carte-facture--tarde {
+  border-color: var(--or-clair);
+  box-shadow: inset 3px 0 0 var(--or);
+}
+.carte-facture__tete {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.carte-facture__nom {
+  font-family: var(--serif);
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--foret);
+}
+.carte-facture__detail { margin-top: 5px; font-size: 13.5px; color: var(--texte-gris); }
+.carte-facture__detail--alerte { color: var(--or-texte); font-weight: 600; }
+.carte-facture__montant {
+  font-family: var(--serif);
+  font-size: 27px;
+  line-height: 1.1;
+  color: var(--foret);
+  font-variant-numeric: tabular-nums;
+}
+.carte-facture__numero { margin-top: 3px; font-size: 12.5px; color: var(--or-texte); }
+.carte-facture__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.liste-factures { display: grid; gap: 10px; margin: 16px 0 34px; }
+
+/* La pastille de compte, sombre quand la section réclame un geste. */
+.pastille-compte--foret {
+  background: var(--foret);
+  border-color: var(--foret);
+  color: var(--creme);
+}
+
+/* Le mois précis, dans la rangée des périodes : une pastille comme les
+   autres, qui applique le choix sans bouton de validation. */
+.selecteur-mois {
+  padding: 8px 12px;
+  border: 1px solid var(--bordure);
+  border-radius: 999px;
+  background: var(--carte);
+  font: inherit;
+  font-size: 13px;
+  color: var(--texte);
+  cursor: pointer;
+}
+.selecteur-mois:hover { border-color: var(--or-clair); }
+
+/* ------------------------------------------------------------------ */
+/*  Avant d'émettre : la facture en grand, et rien de parti            */
+/* ------------------------------------------------------------------ */
+
+.avertissement-envoi {
+  padding: 20px 24px;
+  background: #fdf6e4;
+  border: 1px solid var(--or-clair);
+  border-radius: 8px;
+}
+.avertissement-envoi h1 {
+  margin-top: 9px;
+  font-size: 28px;
+  line-height: 1.2;
+}
+.avertissement-envoi p { font-size: 14.5px; line-height: 1.7; color: var(--texte-doux); }
+
+.barre-emission {
+  margin-top: 22px;
+  padding: 20px 22px;
+  background: var(--carte);
+  border: 1px solid var(--bordure);
+  border-radius: 8px;
+}
+.barre-emission__gestes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.barre-emission p {
+  margin-top: 14px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--texte-gris);
+}
+.barre-emission strong { color: var(--foret); }
+
+/* ------------------------------------------------------------------ */
+/*  L'écran d'un brouillon : champs serrés, aperçu vivant              */
+/*                                                                     */
+/*  Les champs du site font 52 pixels de haut : parfaits isolés, mais  */
+/*  une facture en aligne trois par ligne et dix lignes. Ici, des      */
+/*  champs de tableur.                                                 */
+/* ------------------------------------------------------------------ */
+
+.etiquette-ligne {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--texte-gris);
+  font-weight: 600;
+}
+.champ-ligne {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--bordure);
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  font-size: 14.5px;
+  color: var(--texte);
+}
+.champ-ligne:focus {
+  outline: none;
+  border-color: var(--or);
+  box-shadow: 0 0 0 3px rgba(176, 122, 22, 0.12);
+}
+.champ-ligne--nombre { font-variant-numeric: tabular-nums; }
+
+.bloc-numero {
+  margin-top: 24px;
+  padding: 18px 20px;
+  background: var(--carte);
+  border: 1px solid var(--bordure);
+  border-radius: 7px;
+}
+.bloc-numero__haut {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-end;
+}
+.bloc-numero__aide {
+  flex: 999 1 240px;
+  margin-bottom: 4px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--texte-gris);
+}
+.bloc-numero__loi {
+  margin-top: 14px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--texte-gris);
+}
+.bloc-numero__loi strong { color: var(--foret); }
+
+.apercu-facture__filet {
+  height: 1px;
+  background: var(--bordure-douce);
+  margin: 18px 0;
+}
+.apercu-facture__ligne {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  font-size: 13.5px;
+}
+.apercu-facture__ligne span:first-child { color: var(--texte-doux); min-width: 0; }
+.apercu-facture__ligne span:last-child {
+  color: var(--foret);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.apercu-facture__total {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--bordure);
+}
+.apercu-facture__total span { font-size: 12.5px; color: var(--texte-gris); }
+.apercu-facture__total strong {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--foret);
+  font-variant-numeric: tabular-nums;
 }

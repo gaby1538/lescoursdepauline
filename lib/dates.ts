@@ -147,8 +147,17 @@ export function blocLong(bloc: Bloc): string {
 }
 
 /** « 2 h » ou « 1 h » — pour les récapitulatifs courts. */
+/**
+ * Une durée en heures, écrite comme on la dit : « 2 h », « 1 h 30 »,
+ * « 45 min ». Les cours ne tombent pas tous sur l'heure pleine, et
+ * « 1.5 h » n'est pas du français.
+ */
 export function dureeCourte(heures: number): string {
-  return `${heures} h`;
+  const minutes = Math.round(heures * 60);
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const reste = minutes % 60;
+  return reste === 0 ? `${h} h` : `${h} h ${String(reste).padStart(2, "0")}`;
 }
 
 /**

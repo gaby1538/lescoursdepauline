@@ -415,6 +415,62 @@ export async function factureEmise(options: {
   });
 }
 
+/**
+ * La même facture, mais adressée à Pauline pour qu'elle la transfère.
+ *
+ * Certaines familles répondent plus volontiers à une personne qu'à un
+ * site : le message part alors de la boîte de Pauline, se range dans
+ * la conversation qu'elle a déjà avec eux, et elle peut ajouter deux
+ * lignes avant de l'envoyer.
+ *
+ * Le corps est exactement ce que la famille doit lire, bandeau mis à
+ * part : un transfert sans retouche fait l'affaire.
+ */
+export async function facturePourTransfert(options: {
+  destinataire: string;
+  famille: string;
+  prenom: string;
+  numero: string;
+  totalCentimes: number;
+  echeance: string;
+  lien: string;
+  heures: number;
+  periode: string;
+  piece?: PieceJointe | null;
+}): Promise<ResultatEnvoi> {
+  const montant = `${(options.totalCentimes / 100).toLocaleString("fr-FR", {
+    minimumFractionDigits: options.totalCentimes % 100 === 0 ? 0 : 2,
+  })} €`;
+
+  return envoyer({
+    destinataire: options.destinataire,
+    pieces: options.piece ? [options.piece] : undefined,
+    sujet: `Facture ${options.numero} — Les cours de Pauline`,
+    html: gabarit(
+      `Facture ${options.numero}`,
+      `<p style="${P}padding:12px 14px;background:#fdf6e4;border:1px solid #e8c87a;
+           border-radius:6px;font-size:13px;color:#8a5e0c;">
+         À transférer à <strong>${echapper(options.famille)}</strong>. Le texte
+         ci-dessous est prêt ; supprimez ce bandeau avant d'envoyer si vous le
+         souhaitez.</p>
+       <p style="${P}">Bonjour ${options.prenom},</p>
+       <p style="${P}">Voici la facture des cours de ${options.periode} :
+         <strong>${options.heures} heure${options.heures > 1 ? "s" : ""}</strong>,
+         soit <strong>${montant}</strong>.</p>
+       <p style="${P}">Elle est à régler avant le <strong>${options.echeance}</strong>,
+         par virement ou par Wero. Les coordonnées figurent sur la facture.</p>
+       ${
+         options.piece
+           ? `<p style="${P}font-size:13px;color:#55604f;">La facture est jointe à ce
+                message, en PDF.</p>`
+           : ""
+       }
+       ${bouton(options.lien, "Voir ma facture")}
+       <p style="${P}">Merci,<br>Pauline</p>`
+    ),
+  });
+}
+
 export async function nouveauDocument(options: {
   destinataire: string;
   prenom: string;

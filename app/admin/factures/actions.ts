@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { exigerAdmin } from "@/lib/admin";
 import { clientAdmin } from "@/lib/supabase";
 import { creneauLong, moisLong } from "@/lib/dates";
-import { factureEmise } from "@/lib/emails";
+import { factureEmise, facturePourTransfert } from "@/lib/emails";
 import { pdfDeFacture } from "@/lib/facturePdf";
 
 /** Ce que le livre des recettes accepte comme mode de règlement. */
@@ -308,7 +308,8 @@ export async function emettre(
   const id = String(formulaire.get("id") ?? "");
   if (!id) retour();
 
-  const surErreur = (q: string): never => retour(`/admin/factures/${id}/modifier${q}`);
+  const surErreur: (q: string) => never = (q) =>
+    retour(`/admin/factures/${id}/modifier${q}`);
 
   if (!(await estBrouillon(id))) surErreur("?erreur=emise");
 
@@ -363,7 +364,7 @@ async function expedier(id: string, mot: string): Promise<never> {
   const { data: facture } = await supabase
     .from("factures")
     .select(
-      "id, numero, total_cents, echeance_le, periode_debut, envoyee_le, remise_le, dossiers (prenom, email)"
+      "id, numero, total_cents, echeance_le, periode_debut, envoyee_le, remise_le, transferee_le, dossiers (prenom, email)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -373,7 +374,9 @@ async function expedier(id: string, mot: string): Promise<never> {
     | null;
 
   if (!facture || !dossier) retour("?erreur=introuvable");
-  if (facture.envoyee_le || facture.remise_le) retour("?erreur=deja_transmise");
+  if (facture.envoyee_le || facture.remise_le || facture.transferee_le) {
+    retour("?erreur=deja_transmise");
+  }
 
   const { count } = await supabase
     .from("lignes_facture")
@@ -444,6 +447,97 @@ export async function envoyerFacture(formulaire: FormData): Promise<void> {
   const id = String(formulaire.get("id") ?? "");
   if (!id) retour();
   await expedier(id, String(formulaire.get("message") ?? ""));
+}
+
+/**
+ * La seconde façon d'envoyer : le site écrit à Pauline, et c'est elle
+ * qui transfère depuis sa propre boîte.
+ *
+ * La facture quitte « À envoyer » : le document est dans sa messagerie
+ * à un transfert près. On garde la distinction en base parce qu'une
+ * relance ne se formule pas pareil selon que la famille a reçu la
+ * facture du site ou de Pauline.
+ */
+export async function transfererFacture(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const id = String(formulaire.get("id") ?? "");
+  if (!id) retour();
+
+  const supabase = clientAdmin();
+
+  const { data: facture } = await supabase
+    .from("factures")
+    .select(
+      "id, numero, total_cents, echeance_le, periode_debut, envoyee_le, remise_le, transferee_le, dossiers (prenom, email)"
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  const dossier = facture?.dossiers as unknown as
+    | { prenom: string | null; email: string }
+    | null;
+
+  if (!facture || !dossier) retour("?erreur=introuvable");
+  if (facture.envoyee_le || facture.remise_le || facture.transferee_le) {
+    retour("?erreur=deja_transmise");
+  }
+
+  const { data: reglages } = await supabase
+    .from("parametres")
+    .select("email_contact")
+    .eq("id", true)
+    .maybeSingle();
+
+  // Sans adresse de contact, il n'y a personne à qui écrire : autant le
+  // dire plutôt que d'envoyer dans le vide.
+  if (!reglages?.email_contact) retour("?erreur=sans_contact");
+
+  const { count } = await supabase
+    .from("lignes_facture")
+    .select("id", { count: "exact", head: true })
+    .eq("facture_id", id);
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com";
+
+  let piece: { nom: string; contenu: Buffer } | null = null;
+  try {
+    piece = await pdfDeFacture(id);
+  } catch (e) {
+    console.error("PDF de facture", e);
+  }
+
+  const resultat = await facturePourTransfert({
+    destinataire: reglages.email_contact,
+    famille: dossier.email,
+    prenom: dossier.prenom ?? "",
+    numero: facture.numero ?? "",
+    totalCentimes: facture.total_cents,
+    echeance: facture.echeance_le
+      ? new Date(facture.echeance_le).toLocaleDateString("fr-FR")
+      : "",
+    lien: `${site}/factures/${facture.id}`,
+    heures: count ?? 0,
+    periode: moisLong(facture.periode_debut),
+    piece,
+  });
+
+  if (resultat.ok) {
+    await supabase
+      .from("factures")
+      .update({ transferee_le: new Date().toISOString() })
+      .eq("id", id);
+  }
+
+  await supabase.from("journal").insert({
+    acteur: "pauline",
+    objet: "facture",
+    objet_id: id,
+    action: resultat.ok ? "transferee" : "transfert_echoue",
+    details: { numero: facture.numero, detail: resultat.detail },
+  });
+
+  retour(resultat.ok ? "?ok=transferee" : "?erreur=envoi");
 }
 
 /**
@@ -534,12 +628,19 @@ export async function supprimerBrouillon(formulaire: FormData): Promise<void> {
 export async function creerFactureManuelle(formulaire: FormData): Promise<void> {
   await exigerAdmin();
 
+  // Les reproches reviennent à l'écran qui a posé la question, pas
+  // à la liste des factures : sans cela, le formulaire à corriger
+  // n'est plus affiché.
+  const surErreur: (q: string) => never = (q) => {
+    redirect(`/admin/factures/nouvelle${q}`);
+  };
+
   const supabase = clientAdmin();
   let dossierId = String(formulaire.get("dossier_id") ?? "").trim();
 
   if (!dossierId) {
     const email = String(formulaire.get("email") ?? "").trim().toLowerCase();
-    if (!email || !email.includes("@")) retour("?erreur=client");
+    if (!email || !email.includes("@")) surErreur("?erreur=client");
 
     // Même adresse, même client : on ne crée pas un second dossier qui
     // couperait l'historique en deux.
@@ -569,7 +670,7 @@ export async function creerFactureManuelle(formulaire: FormData): Promise<void> 
 
       if (error || !cree) {
         console.error("création client", error);
-        retour("?erreur=client");
+        surErreur("?erreur=client");
       }
       dossierId = cree.id;
     }
@@ -610,7 +711,7 @@ export async function creerFactureManuelle(formulaire: FormData): Promise<void> 
 
   if (error || !facture) {
     console.error("facture manuelle", error);
-    retour("?erreur=creation");
+    surErreur("?erreur=creation");
   }
 
   revalidatePath("/admin/factures");

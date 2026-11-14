@@ -2,14 +2,9 @@ import { notFound } from "next/navigation";
 import { clientAdmin } from "@/lib/supabase";
 import { dossierConnecte } from "@/lib/session";
 import { emailAdmin } from "@/lib/admin";
-import { euros } from "@/lib/constantes";
-import { moisLong } from "@/lib/dates";
+import FactureDocument from "@/components/FactureDocument";
 
 export const dynamic = "force-dynamic";
-
-function date(valeur: string | null): string {
-  return valeur ? new Date(valeur).toLocaleDateString("fr-FR") : "—";
-}
 
 export default async function Facture({
   params,
@@ -55,152 +50,21 @@ export default async function Facture({
   // sinon un brouillon abandonné laisserait un trou dans la série.
   // On montre tout de même celui qu'elle recevra, pour que l'aperçu ne
   // paraisse pas incomplet.
-  const brouillon = facture.statut === "brouillon";
-  const { data: numeroAVenir } = brouillon
-    ? await supabase.rpc("numero_suggere")
-    : { data: null };
+  const { data: numeroAVenir } =
+    facture.statut === "brouillon"
+      ? await supabase.rpc("numero_suggere")
+      : { data: null };
 
   return (
     <section className="section facture-page">
       <div className="conteneur-etroit">
-        <div className="facture">
-          <div className="facture__entete">
-            <div>
-              <p
-                style={{
-                  fontFamily: "var(--serif)",
-                  fontSize: 25,
-                  color: "var(--foret)",
-                }}
-              >
-                Les cours de <span style={{ color: "var(--or-texte)" }}>Pauline</span>
-              </p>
-              <p className="facture__petit">
-                {p?.exploitante}
-                <br />
-                {p?.adresse_postale ?? ""}
-                <br />
-                SIRET {p?.siret}
-                <br />
-                {p?.email_contact}
-              </p>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <p className="surtitre">
-                {facture.statut === "brouillon" ? "Brouillon" : "Facture"}
-              </p>
-              <p
-                style={{
-                  fontFamily: "var(--serif)",
-                  fontSize: 30,
-                  color: brouillon ? "var(--texte-gris)" : "var(--foret)",
-                }}
-              >
-                {facture.numero ?? numeroAVenir ?? "sans numéro"}
-              </p>
-              {brouillon ? (
-                <p className="facture__petit">
-                  Numéro et dates attribués à l&apos;émission
-                </p>
-              ) : (
-                <p className="facture__petit">
-                  Émise le {date(facture.emise_le)}
-                  <br />
-                  Échéance {date(facture.echeance_le)}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="facture__parties">
-            <div>
-              <p className="surtitre">Facturé à</p>
-              <p style={{ fontSize: 15.5, lineHeight: 1.6, color: "var(--texte)" }}>
-                {facture.destinataire_nom ?? `${client?.prenom ?? ""} ${client?.nom ?? ""}`}
-                {facture.destinataire_adresse
-                  ? facture.destinataire_adresse
-                      .split("\n")
-                      .map((ligne: string) => (
-                        <span key={ligne}>
-                          <br />
-                          {ligne}
-                        </span>
-                      ))
-                  : null}
-                <br />
-                {client?.email}
-              </p>
-            </div>
-            <div>
-              <p className="surtitre">Élève</p>
-              <p style={{ fontSize: 15.5, lineHeight: 1.6, color: "var(--texte)" }}>
-                {client?.eleve_prenom}
-                {client?.eleve_classe ? (
-                  <>
-                    <br />
-                    {client.eleve_classe}
-                  </>
-                ) : null}
-              </p>
-            </div>
-            <div>
-              <p className="surtitre">Période</p>
-              <p style={{ fontSize: 15.5, lineHeight: 1.6, color: "var(--texte)" }}>
-                {moisLong(facture.periode_debut)}
-              </p>
-            </div>
-          </div>
-
-          <table className="liste facture__lignes">
-            <thead>
-              <tr>
-                <th>Prestation</th>
-                <th className="droite">Quantité</th>
-                <th className="droite">Prix unitaire</th>
-                <th className="droite">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(lignes ?? []).map((l) => (
-                <tr key={l.id}>
-                  <td>{l.description}</td>
-                  <td className="droite">{Number(l.quantite)}</td>
-                  <td className="droite">{euros(l.prix_unitaire_cents)}</td>
-                  <td className="droite">{euros(l.total_cents)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="facture__total">
-            <span>Total à régler</span>
-            <strong>{euros(facture.total_cents)}</strong>
-          </div>
-
-          {facture.note ? (
-            <p className="facture__note">{facture.note}</p>
-          ) : null}
-
-          <p className="facture__mention">TVA non applicable, article 293 B du CGI.</p>
-
-          <div className="facture__paiement">
-            <p className="surtitre" style={{ marginBottom: 10 }}>
-              Règlement
-            </p>
-            <p style={{ fontSize: 14.5, lineHeight: 1.7, color: "var(--texte-doux)" }}>
-              Par virement{p?.iban ? ` — IBAN ${p.iban}` : ""}
-              {p?.wero_telephone ? ( 
-                <>
-                  <br />
-                  Par Wero au {p.wero_telephone}
-                </>
-              ) : null}
-              <br />
-              Payable sous {p?.delai_paiement_jours ?? 30} jours.
-              {facture.payee_le ? ` Réglée le ${date(facture.payee_le)}.` : ""}
-            </p>
-          </div>
-        </div>
+        <FactureDocument
+          facture={facture}
+          lignes={lignes ?? []}
+          reglages={p}
+          client={client}
+          numeroAVenir={numeroAVenir}
+        />
 
         <p className="facture__impression">
           Pour enregistrer cette facture en PDF, utilisez l&apos;impression de votre
