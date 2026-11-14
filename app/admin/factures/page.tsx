@@ -50,10 +50,49 @@ function etatFacture(f: Facture): string {
 export default async function Factures({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; erreur?: string }>;
+  searchParams: Promise<{ ok?: string; erreur?: string; periode?: string }>;
 }) {
-  const { ok, erreur } = await searchParams;
+  const { ok, erreur, periode } = await searchParams;
   const supabase = clientAdmin();
+
+  // La période ne pilote que « À facturer » : c'est la seule section où
+  // la question « quels cours ? » se pose. Brouillons, À envoyer et
+  // historique restent entiers, sans quoi on croirait avoir perdu une
+  // facture en changeant un filtre.
+  const maintenantDate = new Date();
+  const choix = periode ?? "mois";
+
+  let depuis: Date;
+  let libellePeriode: string;
+
+  if (/^\d{4}-\d{2}$/.test(choix)) {
+    depuis = new Date(`${choix}-01T00:00:00Z`);
+    libellePeriode = moisLong(`${choix}-01`);
+  } else if (choix === "trois") {
+    depuis = new Date(maintenantDate);
+    depuis.setUTCMonth(depuis.getUTCMonth() - 2, 1);
+    libellePeriode = "les trois derniers mois";
+  } else if (choix === "annee") {
+    depuis = new Date(Date.UTC(maintenantDate.getUTCFullYear(), 0, 1));
+    libellePeriode = `l'année ${maintenantDate.getUTCFullYear()}`;
+  } else {
+    depuis = new Date(
+      Date.UTC(maintenantDate.getUTCFullYear(), maintenantDate.getUTCMonth(), 1)
+    );
+    libellePeriode = moisLong(depuis.toISOString().slice(0, 10));
+  }
+
+  const jusqua = /^\d{4}-\d{2}$/.test(choix)
+    ? (() => {
+        const f = new Date(depuis);
+        f.setUTCMonth(f.getUTCMonth() + 1);
+        return f;
+      })()
+    : (() => {
+        const f = new Date(maintenantDate);
+        f.setUTCDate(f.getUTCDate() + 1);
+        return f;
+      })();
 
   // Ce qui est validé mais encore sur aucune facture. C'est la réponse à
   // « j'ai validé le cours et je ne vois pas de facture » : la
@@ -61,19 +100,52 @@ export default async function Factures({
   // invisible.
   const { data: enAttente } = await supabase
     .from("reservations")
-    .select("id, debut, prix_cents")
+    .select(
+      "id, debut, prix_cents, dossier_id, dossiers (eleve_prenom, eleve_classe, prenom, nom)"
+    )
     .is("facture_id", null)
-    .in("statut", ["effectuee", "annulee_hors_delai", "absent"]);
+    .in("statut", ["effectuee", "annulee_hors_delai", "absent"])
+    .gte("debut", depuis.toISOString())
+    .lt("debut", jusqua.toISOString())
+    .order("debut");
 
-  const parMois = new Map<string, { heures: number; cents: number }>();
-  for (const r of enAttente ?? []) {
-    const mois = jourDuCreneau(r.debut).slice(0, 7);
-    const c = parMois.get(mois) ?? { heures: 0, cents: 0 };
+  type EnAttente = {
+    id: string;
+    debut: string;
+    prix_cents: number | null;
+    dossier_id: string;
+    dossiers: {
+      eleve_prenom: string | null;
+      eleve_classe: string | null;
+      prenom: string | null;
+      nom: string | null;
+    } | null;
+  };
+
+  // Un brouillon par élève : c'est ainsi que Pauline facture, et c'est
+  // ainsi qu'elle s'y retrouve.
+  const parEleve = new Map<
+    string,
+    { nom: string; detail: string; heures: number; cents: number }
+  >();
+
+  for (const r of ((enAttente ?? []) as unknown as EnAttente[])) {
+    const d = r.dossiers;
+    const c = parEleve.get(r.dossier_id) ?? {
+      nom:
+        d?.eleve_prenom ?? (`${d?.prenom ?? ""} ${d?.nom ?? ""}`.trim() || "—"),
+      detail: d?.eleve_classe ?? "",
+      heures: 0,
+      cents: 0,
+    };
     c.heures += 1;
     c.cents += r.prix_cents ?? 0;
-    parMois.set(mois, c);
+    parEleve.set(r.dossier_id, c);
   }
-  const moisEnAttente = [...parMois.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+
+  const aFacturer = [...parEleve.entries()].sort((a, b) =>
+    a[1].nom.localeCompare(b[1].nom, "fr")
+  );
 
   const { data: clients } = await supabase
     .from("dossiers")
@@ -95,6 +167,8 @@ export default async function Factures({
   // déjà dans les recettes et le délai de paiement court : une facture
   // oubliée ici est pire qu'une facture jamais créée, parce que rien ne
   // la réclame.
+  const brouillons = liste.filter((f) => f.statut === "brouillon");
+
   const aEnvoyer = liste.filter(
     (f) =>
       (f.statut === "envoyee" || f.statut === "en_retard") &&
@@ -113,8 +187,11 @@ export default async function Factures({
   const anneeCourante = new Date().getFullYear();
   const annees = [anneeCourante, anneeCourante - 1, anneeCourante - 2];
 
-  const moisDefaut =
-    moisEnAttente[0]?.[0] ?? new Date().toISOString().slice(0, 7);
+  // Le mois proposé au formulaire de rattrapage : celui qu'on regarde,
+  // ou le mois courant.
+  const moisDefaut = /^\d{4}-\d{2}$/.test(choix)
+    ? choix
+    : depuis.toISOString().slice(0, 7);
 
   return (
     <section className="section">
@@ -184,41 +261,105 @@ export default async function Factures({
         )}
         {ok && ok !== "rien" && <p className="succes">C&apos;est fait.</p>}
 
-        {moisEnAttente.length > 0 && (
-          <div className="carte" style={{ marginBottom: 20, borderColor: "var(--or-clair)" }}>
-            <p className="surtitre" style={{ marginBottom: 14 }}>
-              En attente de facturation
-            </p>
-            <div style={{ display: "grid", gap: 12 }}>
-              {moisEnAttente.map(([mois, c]) => (
-                <form
-                  key={mois}
-                  action={genererFactures}
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 14,
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <input type="hidden" name="mois" value={mois} />
-                  <span style={{ fontSize: 15.5, color: "var(--foret)" }}>
-                    <strong style={{ fontFamily: "var(--serif)", fontSize: 19, fontWeight: 500 }}>
-                      {moisLong(`${mois}-01`)}
-                    </strong>{" "}
-                    — {c.heures} h, {euros(c.cents)}
-                  </span>
-                  <button type="submit" className="bouton bouton--or bouton--compact">
-                    Préparer ces factures
+        <h2 style={{ fontSize: 25, margin: "40px 0 6px" }}>À facturer</h2>
+        <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
+          Les cours donnés qui ne figurent sur aucune facture. Un clic prépare le
+          brouillon et l&apos;ouvre. Rien n&apos;est envoyé à la préparation.
+        </p>
+
+        <div className="periodes">
+          {[
+            ["mois", "Ce mois-ci"],
+            ["trois", "3 derniers mois"],
+            ["annee", `Année ${new Date().getUTCFullYear()}`],
+          ].map(([cle, nom]) => (
+            <Link
+              key={cle}
+              href={`/admin/factures?periode=${cle}`}
+              className={choix === cle ? "periode periode--actif" : "periode"}
+            >
+              {nom}
+            </Link>
+          ))}
+          <form method="get" className="periodes__mois">
+            <label htmlFor="periode" style={{ fontSize: 13, color: "var(--texte-gris)" }}>
+              ou un mois précis
+            </label>
+            <input
+              id="periode"
+              name="periode"
+              type="month"
+              defaultValue={/^\d{4}-\d{2}$/.test(choix) ? choix : ""}
+              style={{ ...saisie, width: 170, padding: "8px 12px" }}
+            />
+            <button type="submit" className="bouton bouton--secondaire bouton--compact">
+              Voir
+            </button>
+          </form>
+        </div>
+
+        {aFacturer.length === 0 ? (
+          <p
+            className="carte"
+            style={{ fontSize: 15, color: "var(--texte-doux)", marginBottom: 34 }}
+          >
+            Rien à facturer sur {libellePeriode}. Les cours doivent d&apos;abord être
+            validés depuis le tableau de bord.
+          </p>
+        ) : (
+          <div style={{ display: "grid", gap: 10, margin: "16px 0 34px" }}>
+            {aFacturer.map(([dossierId, c]) => (
+              <form
+                key={dossierId}
+                action={genererFactures}
+                className="carte"
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 16,
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <input type="hidden" name="dossier" value={dossierId} />
+                <input
+                  type="hidden"
+                  name="depuis"
+                  value={depuis.toISOString().slice(0, 10)}
+                />
+                <input
+                  type="hidden"
+                  name="jusqua"
+                  value={jusqua.toISOString().slice(0, 10)}
+                />
+
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontFamily: "var(--serif)", fontSize: 21, color: "var(--foret)" }}>
+                    {c.nom}
+                  </p>
+                  <p style={{ marginTop: 4, fontSize: 13.5, color: "var(--texte-gris)" }}>
+                    {c.detail ? `${c.detail} · ` : ""}
+                    {c.heures} h · {libellePeriode}
+                  </p>
+                </div>
+
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
+                  <p
+                    style={{
+                      fontFamily: "var(--serif)",
+                      fontSize: 25,
+                      color: "var(--foret)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {euros(c.cents)}
+                  </p>
+                  <button type="submit" className="bouton bouton--principal bouton--compact">
+                    Préparer
                   </button>
-                </form>
-              ))}
-            </div>
-            <p style={{ marginTop: 14, fontSize: 13.5, lineHeight: 1.6, color: "var(--texte-gris)" }}>
-              Ces cours sont validés mais ne figurent sur aucune facture. Rien
-              n&apos;est envoyé à la préparation : vous relisez avant d&apos;émettre.
-            </p>
+                </div>
+              </form>
+            ))}
           </div>
         )}
 
@@ -423,6 +564,84 @@ export default async function Factures({
             </button>
           </div>
         </form>
+
+        {brouillons.length > 0 && (
+          <>
+            <h2 style={{ fontSize: 25, margin: "46px 0 6px" }}>
+              Brouillons
+              <span className="pastille-compte">{brouillons.length}</span>
+            </h2>
+            <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>
+              Commencés, pas encore émis. Ni numéro ni date tant qu&apos;ils ne le
+              sont pas : la numérotation doit rester continue, et un brouillon
+              abandonné laisserait un trou dans la série.
+            </p>
+
+            <div style={{ display: "grid", gap: 10, margin: "16px 0 34px" }}>
+              {brouillons.map((f) => (
+                <div
+                  key={f.id}
+                  className="carte"
+                  style={{ boxShadow: "inset 3px 0 0 var(--or-clair)" }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 16,
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontFamily: "var(--serif)", fontSize: 21, color: "var(--foret)" }}>
+                        {f.dossiers?.eleve_prenom ?? f.dossiers?.prenom ?? "—"}
+                      </p>
+                      <p style={{ marginTop: 5, fontSize: 13.5, color: "var(--texte-gris)" }}>
+                        {moisLong(f.periode_debut)} · {f.dossiers?.email}
+                      </p>
+                    </div>
+                    <p
+                      style={{
+                        fontFamily: "var(--serif)",
+                        fontSize: 25,
+                        color: "var(--foret)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {euros(f.total_cents)}
+                    </p>
+                  </div>
+
+                  <div
+                    className="actions-ligne"
+                    style={{ justifyContent: "flex-start", marginTop: 14 }}
+                  >
+                    <Link
+                      href={`/admin/factures/${f.id}/modifier`}
+                      className="bouton bouton--principal bouton--compact"
+                    >
+                      Modifier
+                    </Link>
+                    <Link
+                      href={`/factures/${f.id}`}
+                      target="_blank"
+                      className="bouton bouton--secondaire bouton--compact"
+                    >
+                      Visualiser
+                    </Link>
+                    <form action={supprimerBrouillon} style={{ marginLeft: "auto" }}>
+                      <input type="hidden" name="id" value={f.id} />
+                      <button type="submit" className="lien-bouton">
+                        supprimer
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         {aEnvoyer.length > 0 && (
           <>

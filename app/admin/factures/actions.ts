@@ -29,17 +29,31 @@ function retour(parametre?: string): never {
 export async function genererFactures(formulaire: FormData): Promise<void> {
   await exigerAdmin();
 
+  // Soit un mois, soit un intervalle quelconque : Pauline peut vouloir
+  // facturer un trimestre d'un coup, ou rattraper une année.
   const mois = String(formulaire.get("mois") ?? "");
-  if (!/^\d{4}-\d{2}$/.test(mois)) retour("?erreur=mois");
+  const depuis = String(formulaire.get("depuis") ?? "");
+  const jusqua = String(formulaire.get("jusqua") ?? "");
+  const dossierVoulu = String(formulaire.get("dossier") ?? "").trim();
 
-  const debut = `${mois}-01`;
-  const suivant = new Date(`${debut}T00:00:00Z`);
-  suivant.setUTCMonth(suivant.getUTCMonth() + 1);
-  const fin = suivant.toISOString().slice(0, 10);
+  let debut: string;
+  let fin: string;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(depuis) && /^\d{4}-\d{2}-\d{2}$/.test(jusqua)) {
+    debut = depuis;
+    fin = jusqua;
+  } else if (/^\d{4}-\d{2}$/.test(mois)) {
+    debut = `${mois}-01`;
+    const suivant = new Date(`${debut}T00:00:00Z`);
+    suivant.setUTCMonth(suivant.getUTCMonth() + 1);
+    fin = suivant.toISOString().slice(0, 10);
+  } else {
+    retour("?erreur=mois");
+  }
 
   const supabase = clientAdmin();
 
-  const { data: cours } = await supabase
+  let requete = supabase
     .from("reservations")
     .select("id, dossier_id, debut, prix_cents")
     .is("facture_id", null)
@@ -47,6 +61,12 @@ export async function genererFactures(formulaire: FormData): Promise<void> {
     .gte("debut", `${debut}T00:00:00Z`)
     .lt("debut", `${fin}T00:00:00Z`)
     .order("debut");
+
+  if (/^[0-9a-f-]{36}$/.test(dossierVoulu)) {
+    requete = requete.eq("dossier_id", dossierVoulu);
+  }
+
+  const { data: cours } = await requete;
 
   if (!cours || cours.length === 0) retour("?ok=rien");
 
@@ -58,6 +78,7 @@ export async function genererFactures(formulaire: FormData): Promise<void> {
   }
 
   let creees = 0;
+  let derniere: string | null = null;
 
   for (const [dossierId, liste] of parDossier) {
     const total = liste.reduce((somme, c) => somme + c.prix_cents, 0);
@@ -107,6 +128,14 @@ export async function genererFactures(formulaire: FormData): Promise<void> {
       );
 
     creees += 1;
+    derniere = facture.id;
+  }
+
+  // Une seule facture préparée : on l'ouvre, plutôt que de renvoyer
+  // vers une liste où il faudrait la retrouver.
+  if (creees === 1 && derniere) {
+    revalidatePath("/admin/factures");
+    redirect(`/admin/factures/${derniere}/modifier?ok=nouvelle`);
   }
 
   retour(`?ok=${creees}`);
