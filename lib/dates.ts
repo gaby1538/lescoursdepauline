@@ -154,6 +154,7 @@ export function blocLong(bloc: Bloc): string {
  */
 export function dureeCourte(heures: number): string {
   const minutes = Math.round(heures * 60);
+  if (minutes === 0) return "0 h";
   if (minutes < 60) return `${minutes} min`;
   const h = Math.floor(minutes / 60);
   const reste = minutes % 60;

@@ -56,20 +56,26 @@ export default async function TableauDeBord({
   const dansNJours = (n: number) =>
     new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
 
+  // Une semaine, c'est du lundi au dimanche — pas ce qu'il en reste.
+  // Bornée à « maintenant », la semaine en cours affichait zéro cours
+  // le dimanche soir, ce qui ne décrit rien du tout.
+  let debutPeriode: string;
   let finPeriode: string;
   let nomPeriode: string;
 
   if (choix === "mois") {
     const d = new Date();
     const suivant = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
+    debutPeriode = minuit(debutMois);
     finPeriode = minuit(suivant.toISOString().slice(0, 10));
     nomPeriode = "ce mois-ci";
   } else if (choix === "trois") {
+    debutPeriode = maintenant;
     finPeriode = minuit(dansNJours(90));
     nomPeriode = "d'ici trois mois";
   } else {
-    // La semaine en cours s'arrête au lundi suivant.
     const lundi = lundiDeLaSemaine();
+    debutPeriode = minuit(lundi);
     finPeriode = minuit(ajouterJours(lundi, 7));
     nomPeriode = "cette semaine";
   }
@@ -138,10 +144,10 @@ export default async function TableauDeBord({
       .gte("debut", maintenant),
     supabase
       .from("reservations")
-      .select("debut, fin, prix_cents, dossier_id")
-      .eq("statut", "reservee")
+      .select("debut, fin, prix_cents, dossier_id, statut, facture_id")
       .not("validee_le", "is", null)
-      .gte("debut", maintenant)
+      .in("statut", ["reservee", "effectuee", "annulee_hors_delai", "absent"])
+      .gte("debut", debutPeriode)
       .lt("debut", finPeriode),
     supabase
       .from("reservations")
@@ -154,7 +160,7 @@ export default async function TableauDeBord({
       .maybeSingle(),
     supabase
       .from("reservations")
-      .select("prix_cents")
+      .select("debut, fin")
       .gte("debut", debutMois)
       .not("validee_le", "is", null)
       .in("statut", ["reservee", "effectuee", "annulee_hors_delai", "absent"]),
@@ -270,9 +276,10 @@ export default async function TableauDeBord({
   }
 
   const delaiAnnulation = parametres.data?.delai_annulation_h ?? 24;
-  const heuresDuMois = duMois.data?.length ?? 0;
-  const recetteDuMois = (duMois.data ?? []).reduce(
-    (somme, r) => somme + (r.prix_cents ?? 0),
+  // Des heures, pas un nombre de lignes : une séance de deux heures en
+  // est une seule depuis qu'on ne les coupe plus.
+  const heuresDuMois = ((duMois.data ?? []) as { debut: string; fin: string }[]).reduce(
+    (h, r) => h + (Date.parse(r.fin) - Date.parse(r.debut)) / 3600000,
     0
   );
   const duImpaye = (impayees.data ?? []).reduce(
@@ -285,22 +292,39 @@ export default async function TableauDeBord({
   // cours, combien d'heures, ce qu'ils représentent, et pour combien
   // d'élèves. Lus ensemble, ils décrivent une semaine ou un mois ;
   // isolés, ils ne décrivent rien.
-  const coursPeriode = (surLaPeriode.data ?? []) as {
+  const surPeriode = (surLaPeriode.data ?? []) as {
     debut: string;
     fin: string;
     prix_cents: number | null;
     dossier_id: string;
+    statut: string;
+    facture_id: string | null;
   }[];
+
+  // Un cours est une séance qui a eu lieu ou qui aura lieu. Une absence
+  // ou une annulation tardive se facture, mais ne se compte pas comme
+  // un cours donné.
+  const coursPeriode = surPeriode.filter((r) =>
+    ["reservee", "effectuee"].includes(r.statut)
+  );
 
   const heuresPeriode = coursPeriode.reduce(
     (h, r) => h + (Date.parse(r.fin) - Date.parse(r.debut)) / 3600000,
     0
   );
-  const recettePeriode = coursPeriode.reduce(
-    (somme, r) => somme + (r.prix_cents ?? 0),
-    0
-  );
   const elevesPeriode = new Set(coursPeriode.map((r) => r.dossier_id)).size;
+
+  // Ce qui se facture, et rien d'autre : la facturation ne se fait pas
+  // d'avance. Un cours à venir ne vaut rien tant qu'il n'a pas eu lieu.
+  const aFacturerPeriode = surPeriode
+    .filter(
+      (r) =>
+        !r.facture_id &&
+        ["effectuee", "annulee_hors_delai", "absent"].includes(r.statut)
+    )
+    .reduce((somme, r) => somme + (r.prix_cents ?? 0), 0);
+
+  const restantes = coursPeriode.filter((r) => r.debut >= maintenant).length;
 
   const horizon = dernierCours.data?.debut
     ? new Date(dernierCours.data.debut).toLocaleDateString("fr-FR", {
@@ -383,11 +407,21 @@ export default async function TableauDeBord({
             valeur={String(coursPeriode.length)}
             libelle={`cours ${nomPeriode}`}
           />
-          <Chiffre valeur={dureeCourte(heuresPeriode)} libelle="de cours" />
-          <Chiffre valeur={euros(recettePeriode)} libelle="que cela représente" />
+          <Chiffre
+            valeur={dureeCourte(heuresPeriode)}
+            libelle={
+              restantes > 0
+                ? `dont ${restantes} encore à donner`
+                : "toutes déjà données"
+            }
+          />
           <Chiffre
             valeur={String(elevesPeriode)}
             libelle={elevesPeriode > 1 ? "élèves concernés" : "élève concerné"}
+          />
+          <Chiffre
+            valeur={euros(aFacturerPeriode)}
+            libelle="à facturer, cours donnés"
           />
         </div>
 
@@ -405,7 +439,7 @@ export default async function TableauDeBord({
           cours posés en tout
           {horizon ? `, jusqu'au ${horizon}` : ""} ·{" "}
           <Link href="/admin/eleves">{eleves.count ?? 0} dossiers élèves</Link> ·{" "}
-          {heuresDuMois} h données ce mois-ci, soit {euros(recetteDuMois)} à facturer
+          {dureeCourte(heuresDuMois)} données depuis le 1er
           {duImpaye > 0 ? (
             <>
               {" · "}
