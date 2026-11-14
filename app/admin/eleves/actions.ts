@@ -84,7 +84,24 @@ export async function marquerEffectue(formulaire: FormData): Promise<void> {
   const dossier = String(formulaire.get("dossier") ?? "");
 
   if (id) {
-    await clientAdmin().from("reservations").update({ statut: "effectuee" }).eq("id", id);
+    // L'erreur était ignorée : la base pouvait refuser — un cours non
+    // validé n'est pas facturable — et l'écran annonçait quand même
+    // « c'est fait », en laissant la ligne en place sans explication.
+    const { error } = await clientAdmin()
+      .from("reservations")
+      .update({ statut: "effectuee" })
+      .eq("id", id);
+
+    if (error) {
+      console.error("marquer effectué", error);
+      retour(
+        destination(formulaire, `/admin/eleves/${dossier}`),
+        error.message.includes("NON_VALIDEE")
+          ? "?erreur=non_validee"
+          : "?erreur=enregistrement"
+      );
+    }
+
     await clientAdmin().from("journal").insert({
       acteur: "pauline",
       dossier_id: dossier || null,

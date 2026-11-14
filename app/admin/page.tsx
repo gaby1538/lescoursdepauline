@@ -29,6 +29,8 @@ const MESSAGES: Record<string, string> = {
   partiel:
     "Une partie des heures seulement a été traitée. Rechargez la page pour voir ce qu'il reste.",
   introuvable: "Ce cours n'est plus en attente : il a peut-être déjà été traité.",
+  non_validee:
+    "Ce cours n'a jamais été accepté : il ne peut donc pas être marqué comme donné, ni facturé. Répondez d'abord à la demande.",
   enregistrement: "La base a refusé l'enregistrement. Réessayez dans un instant.",
 };
 
@@ -118,6 +120,28 @@ export default async function TableauDeBord({
       .eq("id", true)
       .maybeSingle(),
   ]);
+
+  // Une requête qui échoue renvoie data: null, que tout le code traite
+  // ensuite comme « rien à afficher ». Un écran vide ne dit pas qu'une
+  // colonne manque, et la panne se révèle ailleurs, sans rapport. On
+  // regarde donc les erreurs avant de dessiner quoi que ce soit.
+  const pannes = [
+    ["demandes de cours", aDecider],
+    ["demandes d'annulation", demandes],
+    ["prochains cours", prochains],
+    ["cours à valider", aValider],
+    ["compteurs", aVenir],
+    ["recette du mois", duMois],
+    ["factures impayées", impayees],
+    ["réglages", parametres],
+  ]
+    .filter(([, r]) => (r as { error?: unknown }).error)
+    .map(([quoi, r]) => ({
+      quoi: quoi as string,
+      message: String(
+        ((r as { error?: { message?: string } }).error?.message ?? "")
+      ),
+    }));
 
   const liste = (prochains.data ?? []) as unknown as Prochain[];
   const enAttente = (aValider.data ?? []) as unknown as (Prochain & {
@@ -220,6 +244,23 @@ export default async function TableauDeBord({
             Modifier mes horaires
           </Link>
         </div>
+
+        {pannes.length > 0 && (
+          <div className="alerte" style={{ marginTop: 0, marginBottom: 24 }}>
+            <strong>La base a refusé {pannes.length} requête
+            {pannes.length > 1 ? "s" : ""} de cet écran.</strong> Ce qui s&apos;affiche
+            ci-dessous est donc incomplet. La cause habituelle est une migration non
+            exécutée : passez <code>verifier_migrations.sql</code> dans
+            l&apos;éditeur SQL de Supabase.
+            <ul style={{ margin: "10px 0 0", paddingLeft: 20, fontSize: 13.5 }}>
+              {pannes.map((p) => (
+                <li key={p.quoi}>
+                  {p.quoi} — <span style={{ opacity: 0.85 }}>{p.message}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {erreur && (
           <p className="alerte" style={{ marginTop: 0, marginBottom: 24 }}>
