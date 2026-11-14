@@ -8,12 +8,13 @@ type Dossier = {
   id: string;
   prenom: string | null;
   nom: string | null;
-  email: string;
+  email: string | null;
   eleve_prenom: string | null;
   eleve_classe: string | null;
   email_confirme_le: string | null;
   suspendu: boolean;
   user_id: string | null;
+  archive_le: string | null;
   cree_le: string;
 };
 
@@ -24,7 +25,7 @@ export default async function Eleves() {
     supabase
       .from("dossiers")
       .select(
-        "id, prenom, nom, email, eleve_prenom, eleve_classe, email_confirme_le, suspendu, user_id, cree_le"
+        "id, prenom, nom, email, eleve_prenom, eleve_classe, email_confirme_le, suspendu, user_id, archive_le, cree_le"
       )
       .eq("anonymise", false)
       .order("cree_le", { ascending: false }),
@@ -32,7 +33,12 @@ export default async function Eleves() {
     supabase.from("liste_noire").select("id, email_normalise, telephone, motif, cree_le"),
   ]);
 
-  const liste = (dossiers.data ?? []) as Dossier[];
+  const tous = (dossiers.data ?? []) as Dossier[];
+
+  // Les fiches archivées sortent des listes sans rien perdre : leur
+  // historique et leurs factures restent, dix ans durant.
+  const liste = tous.filter((d) => !d.archive_le);
+  const archives = tous.filter((d) => d.archive_le);
   const maintenant = new Date().toISOString();
 
   const compte = new Map<string, { total: number; aVenir: number; attente: number }>();
@@ -52,9 +58,16 @@ export default async function Eleves() {
             <p className="surtitre">Administration</p>
             <h1 style={{ fontSize: 40, lineHeight: 1.12 }}>Élèves</h1>
           </div>
-          <p style={{ fontSize: 14, color: "var(--texte-gris)" }}>
-            {liste.length} dossier{liste.length > 1 ? "s" : ""}
-          </p>
+          <div
+            style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}
+          >
+            <p style={{ fontSize: 14, color: "var(--texte-gris)" }}>
+              {liste.length} dossier{liste.length > 1 ? "s" : ""}
+            </p>
+            <Link href="/admin/eleves/nouveau" className="action action--foret">
+              Nouvel élève
+            </Link>
+          </div>
         </div>
 
         <div className="tableau-enveloppe tableau-defilant">
@@ -93,12 +106,14 @@ export default async function Eleves() {
                         {d.prenom} {d.nom}
                         <br />
                         <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
-                          {d.email}
+                          {d.email ?? "pas d'adresse"}
                         </span>
                       </td>
                       <td>
                         {d.suspendu ? (
                           <span className="etiquette">Suspendu</span>
+                        ) : !d.email ? (
+                          <span className="etiquette">Hors ligne</span>
                         ) : d.email_confirme_le ? (
                           <span className="etiquette">
                             {d.user_id ? "Espace actif" : "Adresse confirmée"}
@@ -142,6 +157,35 @@ export default async function Eleves() {
             </table>
           )}
         </div>
+
+        {archives.length > 0 && (
+          <details className="repli-discret">
+            <summary>Élèves archivés ({archives.length})</summary>
+            <div className="repli-discret__corps">
+              <p style={{ fontSize: 14, lineHeight: 1.65, color: "var(--texte-gris)" }}>
+                Ils ne prennent plus de cours. Leur fiche reste ouverte : les cours
+                passés et les factures émises ne s&apos;effacent pas.
+              </p>
+              <table className="liste" style={{ marginTop: 14 }}>
+                <tbody>
+                  {archives.map((d) => (
+                    <tr key={d.id}>
+                      <td>
+                        <strong>{d.eleve_prenom ?? "—"}</strong>
+                      </td>
+                      <td style={{ color: "var(--texte-gris)" }}>
+                        {d.eleve_classe ?? ""}
+                      </td>
+                      <td className="droite">
+                        <Link href={`/admin/eleves/${d.id}`}>ouvrir</Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        )}
 
         {/* Bloquer quelqu'un doit rester exceptionnel : la section est
             repliée, sans titre de section, et ne s'annonce que par une

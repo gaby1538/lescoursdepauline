@@ -1828,3 +1828,99 @@ table.liste .droite { text-align: right; }
   color: var(--foret);
   font-variant-numeric: tabular-nums;
 }
+
+/* =====================================================================
+   Les séries de cours — la règle à gauche, les séances à droite.
+   ===================================================================== */
+
+.trio {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 560px) {
+  .trio { grid-template-columns: 1fr; }
+}
+
+.filet-section {
+  height: 1px;
+  background: var(--bordure-douce);
+  margin: 22px 0;
+}
+
+/* L'aperçu : une liste qu'on relit avant de créer quoi que ce soit.
+   Chaque ligne est un label, pour que le clic porte partout. */
+.liste-seances {
+  background: #fff;
+  border: 1px solid var(--bordure);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.seance {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--bordure-douce);
+  cursor: pointer;
+}
+.seance:last-child { border-bottom: 0; }
+.seance:hover { background: var(--carte); }
+
+.seance input[type="checkbox"] {
+  margin: 2px 0 0;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  accent-color: var(--foret);
+}
+
+.seance__corps { flex: 999 1 auto; min-width: 0; }
+
+.seance__date {
+  display: block;
+  font-size: 14px;
+  color: var(--texte);
+}
+
+.seance__motif {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--texte-gris);
+}
+.seance__motif--fort { color: var(--or-texte); font-weight: 600; }
+
+.seance__prix {
+  flex: 0 0 auto;
+  font-size: 13.5px;
+  color: var(--texte-gris);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Écartée d'office : la date reste lisible, mais barrée, pour qu'on
+   voie d'un coup d'œil ce que la règle aurait produit sans le filtre. */
+.seance--ecartee { background: #f7f4ec; }
+.seance--ecartee .seance__date {
+  color: #8a9185;
+  text-decoration: line-through;
+}
+
+/* Un conflit n'est pas un détail de calendrier : c'est un cours déjà
+   posé avec quelqu'un d'autre. */
+.seance--conflit { background: #fdf6e4; }
+
+/* Le bandeau d'une série, sur la fiche d'un élève. */
+.bandeau-serie {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--creme-fonce);
+  border: 1px solid var(--bordure);
+  border-radius: 6px;
+}

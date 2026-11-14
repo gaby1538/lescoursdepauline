@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exigerAdmin } from "@/lib/admin";
 import { clientAdmin } from "@/lib/supabase";
+import { parisVersInstant } from "@/lib/dates";
 import {
   reponseAnnulation,
   reponseDemande,
@@ -492,4 +493,264 @@ export async function deciderDemande(
   revalidatePath("/reserver");
   revalidatePath("/mon-espace");
   retour(ou, echecs.length ? "?erreur=partiel" : "?ok=1");
+}
+
+/* ---------------------------------------------------------------------
+ *  Les élèves que Pauline crée elle-même
+ *
+ *  Une fiche n'est pas un compte : sans adresse email, l'élève n'a
+ *  aucun accès au site, et c'est l'état normal d'une fiche tenue à la
+ *  main. L'adresse, quand il y en a une, sert à envoyer des factures —
+ *  pas à ouvrir un accès. Celui-ci se donne à part, jamais par effet de
+ *  bord d'une création.
+ * ------------------------------------------------------------------ */
+
+/** Un montant saisi à la française : « 39 », « 39,50 », « 39 € ». */
+function centimes(saisie: string): number | null {
+  const propre = saisie.replace(/[^\d,.-]/g, "").replace(",", ".").trim();
+  if (!propre) return null;
+  const n = Number(propre);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
+}
+
+export async function creerEleve(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const prenomEleve = String(formulaire.get("eleve_prenom") ?? "").trim();
+  if (!prenomEleve) retour("/admin/eleves/nouveau", "?erreur=prenom");
+
+  const email = String(formulaire.get("email") ?? "").trim().toLowerCase();
+  if (email && !email.includes("@")) {
+    retour("/admin/eleves/nouveau", "?erreur=email");
+  }
+
+  const supabase = clientAdmin();
+
+  // Une adresse déjà connue désigne un dossier existant : en créer un
+  // second couperait l'historique et les factures en deux.
+  if (email) {
+    const { data: connu } = await supabase
+      .from("dossiers")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (connu) retour(`/admin/eleves/${connu.id}`, "?ok=existant");
+  }
+
+  const { data: cree, error } = await supabase
+    .from("dossiers")
+    .insert({
+      eleve_prenom: prenomEleve,
+      eleve_classe: String(formulaire.get("eleve_classe") ?? "").trim() || null,
+      nom: String(formulaire.get("nom") ?? "").trim() || null,
+      prenom: String(formulaire.get("prenom") ?? "").trim() || null,
+      email: email || null,
+      telephone: String(formulaire.get("telephone") ?? "").trim() || null,
+      facturation_adresse:
+        String(formulaire.get("facturation_adresse") ?? "").trim() || null,
+      tarif_horaire_cents: centimes(String(formulaire.get("tarif") ?? "")),
+    })
+    .select("id")
+    .single();
+
+  if (error || !cree) {
+    console.error("création d'un élève", error);
+    retour("/admin/eleves/nouveau", "?erreur=creation");
+  }
+
+  revalidatePath("/admin/eleves");
+
+  // « Créer la fiche et poser ses cours » enchaîne sur la série : c'est
+  // le geste qui suit neuf fois sur dix.
+  const suite = String(formulaire.get("suite") ?? "");
+  redirect(
+    suite === "cours"
+      ? `/admin/eleves/${cree.id}/serie?ok=cree`
+      : `/admin/eleves/${cree.id}?ok=cree`
+  );
+}
+
+export async function archiverEleve(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const id = String(formulaire.get("id") ?? "");
+  if (!id) retour("/admin/eleves");
+
+  // Archiver n'efface rien : les cours, les factures et le livre des
+  // recettes restent. La fiche sort seulement des listes.
+  const rendre = String(formulaire.get("rendre") ?? "") === "1";
+
+  await clientAdmin()
+    .from("dossiers")
+    .update({ archive_le: rendre ? null : new Date().toISOString() })
+    .eq("id", id);
+
+  revalidatePath("/admin/eleves");
+  retour(`/admin/eleves/${id}`, rendre ? "?ok=reprise" : "?ok=archive");
+}
+
+/* ---------------------------------------------------------------------
+ *  Les cours que Pauline pose elle-même
+ *
+ *  Ils sont valides d'emblée : elle est celle qui valide, lui faire
+ *  valider ses propres cours n'aurait pas de sens. La base les laisse
+ *  aussi passer outre les garde-fous écrits pour les élèves — délai,
+ *  fenêtre de disponibilité, quotas — parce qu'elle est l'agenda. Le
+ *  seul refus qui demeure est le chevauchement : deux élèves ne
+ *  peuvent pas occuper la même heure.
+ * ------------------------------------------------------------------ */
+
+type Creneau = { debut: string; fin: string };
+
+/** Une date et une heure de Paris, plus une durée, font un créneau. */
+function creneau(jour: string, heure: string, dureeMin: number): Creneau | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(jour) || !/^\d{2}:\d{2}/.test(heure)) return null;
+
+  const debut = parisVersInstant(`${jour}T${heure.slice(0, 5)}`);
+  if (!debut) return null;
+
+  const fin = new Date(Date.parse(debut) + dureeMin * 60000).toISOString();
+  return { debut, fin };
+}
+
+function duree(formulaire: FormData): number {
+  const n = Number(String(formulaire.get("duree") ?? "60"));
+  return Number.isFinite(n) && n >= 15 && n <= 480 ? Math.round(n) : 60;
+}
+
+export async function ajouterCours(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const dossier = String(formulaire.get("dossier") ?? "");
+  if (!dossier) retour("/admin/eleves");
+
+  const vers = `/admin/eleves/${dossier}/cours`;
+  const quand = creneau(
+    String(formulaire.get("jour") ?? ""),
+    String(formulaire.get("heure") ?? ""),
+    duree(formulaire)
+  );
+
+  if (!quand) retour(vers, "?erreur=date");
+
+  const { error } = await clientAdmin().from("reservations").insert({
+    dossier_id: dossier,
+    debut: quand.debut,
+    fin: quand.fin,
+    prix_cents: centimes(String(formulaire.get("prix") ?? "")),
+    cree_par_pauline: true,
+    validee_le: new Date().toISOString(),
+    sujet: String(formulaire.get("sujet") ?? "").trim() || null,
+  });
+
+  if (error) {
+    const pris = (error.message ?? "").includes("CRENEAU_PRIS");
+    console.error("ajout d'un cours", error);
+    retour(vers, pris ? "?erreur=pris" : "?erreur=creation");
+  }
+
+  revalidatePath("/admin/horaires");
+  retour(`/admin/eleves/${dossier}`, "?ok=cours");
+}
+
+export async function creerSerie(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const dossier = String(formulaire.get("dossier") ?? "");
+  if (!dossier) retour("/admin/eleves");
+
+  const vers = `/admin/eleves/${dossier}/serie`;
+
+  // Les dates cochées dans l'aperçu, et elles seules. Une case décochée
+  // ne laisse rien derrière elle : ni cours fantôme, ni trace.
+  const jours = formulaire
+    .getAll("jour")
+    .map((v) => String(v))
+    .filter((v) => /^\d{4}-\d{2}-\d{2}$/.test(v));
+
+  if (jours.length === 0) retour(vers, "?erreur=aucune");
+
+  const heure = String(formulaire.get("heure") ?? "");
+  const minutes = duree(formulaire);
+  const prix = centimes(String(formulaire.get("prix") ?? ""));
+
+  const supabase = clientAdmin();
+
+  const { data: serie, error: erreurSerie } = await supabase
+    .from("series")
+    .insert({
+      dossier_id: dossier,
+      jour_semaine: Number(String(formulaire.get("jour_semaine") ?? "2")),
+      heure: heure.slice(0, 5),
+      duree_min: minutes,
+      prix_cents: prix ?? 0,
+    })
+    .select("id")
+    .single();
+
+  if (erreurSerie || !serie) {
+    console.error("création d'une série", erreurSerie);
+    retour(vers, "?erreur=creation");
+  }
+
+  // Une séance à la fois : si l'une se heurte à un créneau déjà pris,
+  // les autres n'ont pas à tomber avec elle. On dit à la fin combien
+  // sont passées.
+  let posees = 0;
+  let refusees = 0;
+
+  for (const jour of jours) {
+    const quand = creneau(jour, heure, minutes);
+    if (!quand) {
+      refusees += 1;
+      continue;
+    }
+
+    const { error } = await supabase.from("reservations").insert({
+      dossier_id: dossier,
+      debut: quand.debut,
+      fin: quand.fin,
+      prix_cents: prix,
+      cree_par_pauline: true,
+      validee_le: new Date().toISOString(),
+      serie_id: serie.id,
+    });
+
+    if (error) refusees += 1;
+    else posees += 1;
+  }
+
+  revalidatePath("/admin/horaires");
+  revalidatePath(`/admin/eleves/${dossier}`);
+  redirect(
+    `/admin/eleves/${dossier}?ok=serie&posees=${posees}&refusees=${refusees}`
+  );
+}
+
+export async function arreterSerie(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const id = String(formulaire.get("id") ?? "");
+  const dossier = String(formulaire.get("dossier") ?? "");
+  if (!id || !dossier) retour("/admin/eleves");
+
+  const supabase = clientAdmin();
+
+  // Les séances passées restent : elles ont eu lieu, elles se
+  // facturent. Seules celles à venir disparaissent.
+  const { count } = await supabase
+    .from("reservations")
+    .delete({ count: "exact" })
+    .eq("serie_id", id)
+    .eq("statut", "reservee")
+    .gt("debut", new Date().toISOString());
+
+  await supabase
+    .from("series")
+    .update({ arretee_le: new Date().toISOString() })
+    .eq("id", id);
+
+  revalidatePath("/admin/horaires");
+  retour(`/admin/eleves/${dossier}`, `?ok=arretee&retirees=${count ?? 0}`);
 }

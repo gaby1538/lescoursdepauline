@@ -1,19 +1,31 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { clientAdmin } from "@/lib/supabase";
-import { creneauLong } from "@/lib/dates";
+import { creneauLong, dureeCourte } from "@/lib/dates";
 import { euros } from "@/lib/constantes";
 import { etiquette, saisie } from "@/components/Champs";
 import Historique, { type Evenement } from "@/components/Historique";
 import { supprimerDocument } from "../../documents/actions";
 import DepotDocument from "../../documents/DepotDocument";
 import {
+  archiverEleve,
+  arreterSerie,
   basculerSuspension,
   annulerCours,
   marquerEffectue,
   supprimerDossier,
   enregistrerFacturation,
 } from "../actions";
+
+const JOURS = [
+  "lundi",
+  "mardi",
+  "mercredi",
+  "jeudi",
+  "vendredi",
+  "samedi",
+  "dimanche",
+];
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +43,10 @@ export default async function FicheEleve({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const { id } = await params;
-  const { ok } = await searchParams;
+  const { ok, posees, retirees } = await searchParams;
   const supabase = clientAdmin();
 
   const { data: dossier } = await supabase
@@ -68,6 +80,38 @@ export default async function FicheEleve({
 
   const maintenant = new Date().toISOString();
 
+  // Les séries encore vivantes : celles qu'on peut prolonger ou
+  // arrêter. Une série dont toutes les séances sont passées n'a plus
+  // rien à arrêter, mais se prolonge très bien.
+  const { data: series } = await supabase
+    .from("series")
+    .select("id, jour_semaine, heure, duree_min, prix_cents, arretee_le")
+    .eq("dossier_id", id)
+    .is("arretee_le", null)
+    .order("cree_le", { ascending: false });
+
+  const idsSeries = (series ?? []).map((x) => x.id);
+  const { data: seancesDesSeries } = idsSeries.length
+    ? await supabase
+        .from("reservations")
+        .select("serie_id, debut, statut")
+        .in("serie_id", idsSeries)
+    : { data: [] };
+
+  const resume = new Map<string, { total: number; derniere: string | null }>();
+  for (const r of (seancesDesSeries ?? []) as {
+    serie_id: string;
+    debut: string;
+    statut: string;
+  }[]) {
+    const c = resume.get(r.serie_id) ?? { total: 0, derniere: null };
+    c.total += 1;
+    if (!c.derniere || r.debut > c.derniere) c.derniere = r.debut;
+    resume.set(r.serie_id, c);
+  }
+
+  const horsLigne = !dossier.email;
+
   return (
     <section className="section">
       <div className="conteneur-etroit">
@@ -75,22 +119,93 @@ export default async function FicheEleve({
           <Link href="/admin/eleves">‹ Tous les élèves</Link>
         </p>
 
-        <h1 style={{ fontSize: 38, lineHeight: 1.12 }}>
-          {dossier.eleve_prenom ?? "Élève"}
-          {dossier.eleve_classe ? (
-            <span style={{ fontSize: 20, color: "var(--texte-gris)" }}>
-              {" "}
-              · {dossier.eleve_classe}
-            </span>
-          ) : null}
-        </h1>
+        <div className="admin__titre" style={{ marginBottom: 0 }}>
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ fontSize: 38, lineHeight: 1.12 }}>
+              {dossier.eleve_prenom ?? "Élève"}
+              {dossier.eleve_classe ? (
+                <span style={{ fontSize: 20, color: "var(--texte-gris)" }}>
+                  {" "}
+                  · {dossier.eleve_classe}
+                </span>
+              ) : null}
+            </h1>
 
-        <p style={{ marginTop: 12, fontSize: 15, color: "var(--texte-doux)" }}>
-          Dossier ouvert par {dossier.prenom} {dossier.nom} — {dossier.email}
+            <div className="periodes" style={{ marginTop: 11 }}>
+              {dossier.tarif_horaire_cents !== null &&
+                dossier.tarif_horaire_cents !== undefined && (
+                  <span className="etiquette">
+                    {euros(dossier.tarif_horaire_cents)} / h
+                  </span>
+                )}
+              {dossier.archive_le ? (
+                <span className="etiquette etiquette--attente">Archivé</span>
+              ) : horsLigne ? (
+                <span className="etiquette etiquette--attente">
+                  Hors ligne — aucun accès au site
+                </span>
+              ) : dossier.user_id ? (
+                <span className="etiquette">Accès actif</span>
+              ) : (
+                <span className="etiquette">Contact connu, sans accès</span>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <Link href={`/admin/eleves/${id}/cours`} className="action action--foret">
+              Ajouter un cours
+            </Link>
+            <Link href={`/admin/eleves/${id}/serie`} className="action action--or">
+              Créer une série
+            </Link>
+          </div>
+        </div>
+
+        <p style={{ marginTop: 16, fontSize: 15, color: "var(--texte-doux)" }}>
+          {dossier.prenom || dossier.nom
+            ? `Contact : ${[dossier.prenom, dossier.nom].filter(Boolean).join(" ")}`
+            : "Aucun contact renseigné"}
+          {dossier.email ? ` — ${dossier.email}` : ""}
           {dossier.telephone ? ` · ${dossier.telephone}` : ""}
         </p>
 
-        {ok && <p className="succes">C&apos;est fait.</p>}
+        {ok === "cree" && (
+          <p className="succes">
+            Fiche créée. Posez ses cours quand vous voulez : rien n&apos;a été
+            envoyé à personne.
+          </p>
+        )}
+        {ok === "cours" && <p className="succes">Le cours est posé.</p>}
+        {ok === "serie" && (
+          <p className="succes">
+            {posees ?? "0"} séance{Number(posees ?? 0) > 1 ? "s" : ""} posée
+            {Number(posees ?? 0) > 1 ? "s" : ""}.
+          </p>
+        )}
+        {ok === "arretee" && (
+          <p className="succes">
+            Série arrêtée. {retirees ?? "0"} séance
+            {Number(retirees ?? 0) > 1 ? "s" : ""} à venir retirée
+            {Number(retirees ?? 0) > 1 ? "s" : ""} ; les cours passés restent.
+          </p>
+        )}
+        {ok === "archive" && (
+          <p className="succes">
+            Fiche archivée. Elle sort des listes ; rien n&apos;est effacé.
+          </p>
+        )}
+        {ok === "reprise" && <p className="succes">Fiche réactivée.</p>}
+        {ok === "existant" && (
+          <p className="alerte">
+            Cette adresse email désignait déjà cet élève : voici sa fiche, plutôt
+            qu&apos;une seconde qui aurait coupé son historique en deux.
+          </p>
+        )}
+        {ok &&
+          !["cree", "cours", "serie", "arretee", "archive", "reprise", "existant"].includes(
+            ok
+          ) && <p className="succes">C&apos;est fait.</p>}
 
         {dossier.suspendu && (
           <p className="alerte">
@@ -123,6 +238,53 @@ export default async function FicheEleve({
             <p className="chiffre__libelle">espace élève</p>
           </div>
         </div>
+
+        {(series ?? []).length > 0 && (
+          <div style={{ marginTop: 28, display: "grid", gap: 8 }}>
+            {(series ?? []).map((serie) => {
+              const c = resume.get(serie.id) ?? { total: 0, derniere: null };
+              const nomJour = JOURS[serie.jour_semaine - 1] ?? "";
+              return (
+                <div key={serie.id} className="bandeau-serie">
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 14.5, color: "var(--foret)" }}>
+                      Série du {nomJour} · {String(serie.heure).slice(0, 5)} ·{" "}
+                      {dureeCourte(serie.duree_min / 60)}
+                    </p>
+                    <p
+                      style={{
+                        margin: "3px 0 0",
+                        fontSize: 13,
+                        color: "var(--texte-gris)",
+                      }}
+                    >
+                      {c.total} séance{c.total > 1 ? "s" : ""} posée
+                      {c.total > 1 ? "s" : ""}
+                      {c.derniere
+                        ? `, la dernière le ${new Date(c.derniere).toLocaleDateString("fr-FR")}`
+                        : ""}
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <Link
+                      href={`/admin/eleves/${id}/serie?serie=${serie.id}`}
+                      className="action action--or"
+                    >
+                      Prolonger
+                    </Link>
+                    <form action={arreterSerie}>
+                      <input type="hidden" name="id" value={serie.id} />
+                      <input type="hidden" name="dossier" value={id} />
+                      <button type="submit" className="action action--contour">
+                        Arrêter la série
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <h2 style={{ fontSize: 25, margin: "44px 0 16px" }}>Ses cours</h2>
         <div className="tableau-enveloppe">
@@ -350,6 +512,29 @@ export default async function FicheEleve({
         </details>
 
         <h2 style={{ fontSize: 25, margin: "52px 0 16px" }}>Agir sur ce dossier</h2>
+
+        <form action={archiverEleve} className="carte" style={{ marginBottom: 18 }}>
+          <input type="hidden" name="id" value={id} />
+          {dossier.archive_le && <input type="hidden" name="rendre" value="1" />}
+          <p className="surtitre" style={{ marginBottom: 12 }}>
+            {dossier.archive_le ? "Fiche archivée" : "Archiver"}
+          </p>
+          <p
+            style={{
+              fontSize: 14.5,
+              lineHeight: 1.65,
+              color: "var(--texte-doux)",
+              marginBottom: 16,
+            }}
+          >
+            {dossier.archive_le
+              ? "Cette fiche est rangée avec les élèves archivés. La remettre en service la fait réapparaître dans les listes."
+              : "Quand l'élève arrête les cours. Sa fiche sort des listes, mais rien ne s'efface : ses cours passés et ses factures restent, comme l'exige la conservation des pièces comptables."}
+          </p>
+          <button type="submit" className="action action--contour">
+            {dossier.archive_le ? "Remettre en service" : "Archiver cette fiche"}
+          </button>
+        </form>
 
         <form action={basculerSuspension} className="carte">
           <p className="surtitre" style={{ marginBottom: 12 }}>

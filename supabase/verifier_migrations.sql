@@ -117,4 +117,28 @@ union all select
 from pg_proc
  where proname in ('remettre_en_brouillon', 'demarquer_payee')
 
+union all select
+  'Élèves et séries (0022)',
+  to_char(count(*), '9') || ' / 5 éléments',
+  case when count(*) = 5 then 'OK' else 'MANQUANTE' end
+from (
+  select 1 from information_schema.columns
+   where table_name = 'dossiers' and column_name = 'tarif_horaire_cents'
+  union all select 1 from information_schema.columns
+   where table_name = 'dossiers' and column_name = 'archive_le'
+  union all select 1 from information_schema.columns
+   where table_name = 'reservations' and column_name = 'cree_par_pauline'
+  union all select 1 from information_schema.tables where table_name = 'series'
+  union all select 1 from information_schema.tables
+   where table_name = 'vacances_scolaires'
+) t
+
+union all select
+  'Adresse email facultative (0022)',
+  case when count(*) = 0 then ' facultative' else ' encore obligatoire' end,
+  case when count(*) = 0 then 'OK' else 'MANQUANTE' end
+from information_schema.columns
+ where table_name = 'dossiers' and column_name = 'email'
+   and is_nullable = 'NO'
+
 order by 1;
