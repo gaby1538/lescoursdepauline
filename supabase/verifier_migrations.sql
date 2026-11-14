@@ -54,4 +54,35 @@ from (
   union all select 1 from pg_trigger where tgname = 'reservations_validation'
 ) t
 
+union all select
+  'Accents réparés (0015)',
+  case when count(*) = 0 then ' aucun texte abîmé' else to_char(count(*), '9') || ' texte(s) encore abîmé(s)' end,
+  case when count(*) = 0 then 'OK' else 'MANQUANTE' end
+from (
+  select 1 from parametres where message_suspension ~ '(Ã|â€)'
+  union all select 1 from pages where titre ~ '(Ã|â€)'
+  union all select 1 from dossiers where coalesce(prenom, '') || coalesce(nom, '') ~ '(Ã|â€)'
+) t
+
+union all select
+  'Réduction d''heures (0016)',
+  to_char(count(*), '9') || ' / 1 élément',
+  case when count(*) = 1 then 'OK' else 'MANQUANTE' end
+from information_schema.columns
+ where table_name = 'reservations' and column_name = 'demande_type'
+
+union all select
+  'Déplacer un cours (0017)',
+  to_char(count(*), '9') || ' / 3 éléments',
+  case when count(*) = 3 then 'OK' else 'MANQUANTE' end
+from (
+  select 1 from information_schema.columns
+   where table_name = 'reservations' and column_name = 'remplace'
+  union all select 1 from information_schema.columns
+   where table_name = 'reservations' and column_name = 'deplacee_le'
+  union all select 1 from pg_constraint
+   where conname = 'reservations_demande_type_check'
+     and pg_get_constraintdef(oid) like '%modification%'
+) t
+
 order by 1;
