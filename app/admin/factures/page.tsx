@@ -556,12 +556,6 @@ export default async function Factures({
                           Envoyer par email
                         </button>
                       </form>
-                      <form action={transfererFacture}>
-                        <input type="hidden" name="id" value={f.id} />
-                        <button type="submit" className="action action--contour">
-                          Me l&apos;envoyer, je transfère
-                        </button>
-                      </form>
                       <Link
                         href={`/admin/factures/${f.id}/apercu`}
                         className="action action--contour"
@@ -574,7 +568,17 @@ export default async function Factures({
                       >
                         Télécharger
                       </a>
-                      <form action={marquerRemise} style={{ marginLeft: "auto" }}>
+
+                      {/* Les deux façons de se passer de l'envoi du site
+                          restent au bord droit, en petit : ce sont des
+                          sorties de secours, pas le geste courant. */}
+                      <form action={transfererFacture} style={{ marginLeft: "auto" }}>
+                        <input type="hidden" name="id" value={f.id} />
+                        <button type="submit" className="action action--discret">
+                          Me l&apos;envoyer, je transfère
+                        </button>
+                      </form>
+                      <form action={marquerRemise}>
                         <input type="hidden" name="id" value={f.id} />
                         <button type="submit" className="action action--discret">
                           Remise en main propre
