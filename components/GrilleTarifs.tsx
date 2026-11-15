@@ -16,7 +16,8 @@ const NIVEAUX = [
  */
 export default function GrilleTarifs() {
   return (
-    <div className="tarifs-cartes">
+    <>
+      <div className="tarifs-cartes">
       {NIVEAUX.map((niveau, i) => (
         <div key={niveau.titre} className="tarif">
           <p className="tarif__niveau">{niveau.titre}</p>
@@ -41,6 +42,16 @@ export default function GrilleTarifs() {
           </div>
         </div>
       ))}
-    </div>
+      </div>
+
+      {/* Un tarif affiché n'engage personne : la durée, le niveau et la
+          régularité le font varier, et c'est le devis ou la facture qui
+          fait foi. Le dire évite un malentendu plutôt qu'il n'en crée. */}
+      <p className="tarifs-mention">
+        Tarifs indicatifs, donnés à titre d&apos;information et sans valeur
+        contractuelle. Le tarif applicable est celui convenu ensemble et porté
+        sur la facture.
+      </p>
+    </>
   );
 }

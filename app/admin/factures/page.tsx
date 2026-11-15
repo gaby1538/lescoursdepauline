@@ -4,6 +4,7 @@ import { euros } from "@/lib/constantes";
 import { dureeCourte, moisLong } from "@/lib/dates";
 import { etiquette, saisie } from "@/components/Champs";
 import MoisPrecis from "./MoisPrecis";
+import Etat from "./Etat";
 import {
   genererFactures,
   envoyerFacture,
@@ -53,6 +54,14 @@ function etatFacture(f: Facture): string {
     return "À envoyer";
   }
   return LIBELLE[f.statut] ?? f.statut;
+}
+
+/** Le même état, dans le vocabulaire du menu déroulant. */
+function etatCourant(f: Facture): "brouillon" | "a_envoyer" | "envoyee" | "payee" {
+  if (f.statut === "brouillon") return "brouillon";
+  if (f.statut === "payee") return "payee";
+  if (f.envoyee_le || f.remise_le || f.transferee_le) return "envoyee";
+  return "a_envoyer";
 }
 
 /**
@@ -660,17 +669,11 @@ export default async function Factures({
                     {euros(f.total_cents)}
                   </td>
                   <td className="droite">
-                    <Link
-                      href={`/admin/factures/${f.id}/modifier?corriger=1`}
-                      title="Corriger l'état de cette facture"
-                      className={
-                        etatFacture(f) === "À envoyer" || etatFacture(f) === "En retard"
-                          ? "etiquette etiquette--attente etiquette--lien"
-                          : "etiquette etiquette--lien"
-                      }
-                    >
-                      {etatFacture(f)}
-                    </Link>
+                    <Etat
+                      id={f.id}
+                      etat={etatCourant(f)}
+                      libelle={etatFacture(f)}
+                    />
                   </td>
                   <td className="droite">
                     {f.payee_le ? (

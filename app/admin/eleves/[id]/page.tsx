@@ -27,6 +27,21 @@ const JOURS = [
   "dimanche",
 ];
 
+type Cours = {
+  id: string;
+  debut: string;
+  statut: string;
+  validee_le: string | null;
+  refus_motif: string | null;
+  sujet: string | null;
+  prix_cents: number;
+  facture_id: string | null;
+  annulation_demandee_le: string | null;
+  annulation_decision: string | null;
+  annulation_reponse: string | null;
+  annulation_motif: string | null;
+};
+
 export const dynamic = "force-dynamic";
 
 const LIBELLE: Record<string, string> = {
@@ -111,6 +126,29 @@ export default async function FicheEleve({
   }
 
   const horsLigne = !dossier.email;
+
+  // « Ses cours » ne liste que des cours : ceux à venir, ceux qui
+  // attendent d'être validés, ceux qui ont été donnés. Les annulations,
+  // déplacements et réductions sont des événements du dossier, pas des
+  // cours — l'historique en bas de page les raconte déjà, et les voir
+  // deux fois ne les rendait pas plus clairs.
+  const tous = (cours ?? []) as Cours[];
+  const sesCours = tous.filter((c) =>
+    ["reservee", "effectuee"].includes(c.statut)
+  );
+
+  // Une annulation tardive ou une absence se facture pourtant. Elles
+  // sortent de la liste, mais pas de la vue : une ligne le rappelle
+  // tant qu'elles ne sont pas sur une facture.
+  const aFacturerHorsCours = tous.filter(
+    (c) =>
+      ["annulee_hors_delai", "absent"].includes(c.statut) && !c.facture_id
+  );
+
+  const donnes = sesCours.filter((c) => c.statut === "effectuee").length;
+  const aVenirEleve = sesCours.filter(
+    (c) => c.statut === "reservee" && c.validee_le && c.debut >= maintenant
+  ).length;
 
   return (
     <section className="section">
@@ -217,18 +255,13 @@ export default async function FicheEleve({
 
         <div className="chiffres" style={{ marginTop: 28, gridTemplateColumns: "repeat(3, 1fr)" }}>
           <div className="chiffre">
-            <p className="chiffre__valeur">{(cours ?? []).length}</p>
-            <p className="chiffre__libelle">cours au total</p>
+            <p className="chiffre__valeur">{donnes}</p>
+            <p className="chiffre__libelle">
+              cours donné{donnes > 1 ? "s" : ""}
+            </p>
           </div>
           <div className="chiffre">
-            <p className="chiffre__valeur">
-              {
-                (cours ?? []).filter(
-                  (c) =>
-                    c.statut === "reservee" && c.validee_le && c.debut >= maintenant
-                ).length
-              }
-            </p>
+            <p className="chiffre__valeur">{aVenirEleve}</p>
             <p className="chiffre__libelle">à venir</p>
           </div>
           <div className="chiffre">
@@ -288,14 +321,14 @@ export default async function FicheEleve({
 
         <h2 style={{ fontSize: 25, margin: "44px 0 16px" }}>Ses cours</h2>
         <div className="tableau-enveloppe">
-          {(cours ?? []).length === 0 ? (
+          {sesCours.length === 0 ? (
             <p style={{ padding: 24, fontSize: 15, color: "var(--texte-doux)" }}>
               Aucun cours.
             </p>
           ) : (
             <table className="liste">
               <tbody>
-                {(cours ?? []).map((c) => (
+                {sesCours.map((c) => (
                   <tr key={c.id}>
                     <td>
                       <strong>{creneauLong(c.debut)}</strong>
@@ -307,15 +340,15 @@ export default async function FicheEleve({
                           </span>
                         </>
                       ) : null}
-                      {c.annulation_demandee_le ? (
+                      {/* Une demande encore en attente change ce que
+                          Pauline doit faire de ce cours : elle reste.
+                          Celles déjà tranchées sont de l'histoire, et
+                          l'historique du dossier les raconte. */}
+                      {c.annulation_demandee_le && !c.annulation_decision ? (
                         <>
                           <br />
                           <span style={{ fontSize: 13, color: "var(--or-texte)" }}>
-                            {c.annulation_decision === "acceptee"
-                              ? "Annulation demandée, acceptée"
-                              : c.annulation_decision === "refusee"
-                                ? "Annulation demandée, refusée"
-                                : "Annulation demandée, en attente"}
+                            Changement demandé, en attente de votre réponse
                             {c.annulation_motif ? ` — « ${c.annulation_motif} »` : ""}
                           </span>
                         </>
@@ -375,6 +408,17 @@ export default async function FicheEleve({
             </table>
           )}
         </div>
+
+        {aFacturerHorsCours.length > 0 && (
+          <p style={{ marginTop: 12, fontSize: 13.5, color: "var(--texte-gris)" }}>
+            {aFacturerHorsCours.length} annulation
+            {aFacturerHorsCours.length > 1 ? "s tardives ou absences restent" : " tardive ou absence reste"}{" "}
+            à facturer. Elles ne figurent pas dans la liste — ce ne sont pas des
+            cours — mais elles comptent :{" "}
+            <Link href="/admin/factures">les porter sur une facture</Link>.
+          </p>
+        )}
+
 
         <h2 style={{ fontSize: 25, margin: "52px 0 10px" }}>Ses documents</h2>
         <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--texte-doux)" }}>

@@ -41,6 +41,25 @@ export async function GET(requete: NextRequest) {
   if (fourni !== attendu.trim()) {
     // Ce message ne décrit que ce qui a été envoyé, jamais ce qui est
     // attendu. Il dit à Pauline quoi corriger sans rien révéler.
+    // Quand rien n'arrive, savoir ce que le planificateur a RÉELLEMENT
+    // envoyé vaut mieux que dix suppositions. On ne liste que les noms
+    // des en-têtes, jamais leurs valeurs : un nom ne révèle rien, une
+    // valeur révélerait tout.
+    const ordinaires = new Set([
+      "accept", "accept-encoding", "accept-language", "cache-control",
+      "connection", "content-length", "content-type", "host", "pragma",
+      "user-agent", "via", "cookie", "referer", "origin", "te", "dnt",
+    ]);
+    const personnalises = [...requete.headers.keys()]
+      .filter((n) => !ordinaires.has(n) && !n.startsWith("x-vercel") &&
+                     !n.startsWith("x-forwarded") && !n.startsWith("sec-") &&
+                     !n.startsWith("cf-"))
+      .sort();
+
+    const recus = personnalises.length
+      ? ` En-têtes personnalisés reçus : ${personnalises.join(", ")}.`
+      : " Aucun en-tête personnalisé n'est arrivé : le planificateur n'en envoie aucun.";
+
     const diagnostic =
       brut === ""
         ? "aucune clé n'a été reçue — l'en-tête x-cle-taches est absent, " +
@@ -55,7 +74,10 @@ export async function GET(requete: NextRequest) {
             : "la clé reçue a la bonne longueur mais n'est pas la bonne — " +
               "vérifiez que Vercel a été redéployé depuis son dernier changement";
 
-    return new NextResponse(`Clé refusée : ${diagnostic}.`, { status: 403 });
+    return new NextResponse(
+      `Clé refusée : ${diagnostic}.${brut === "" ? recus : ""}`,
+      { status: 403 }
+    );
   }
 
   const supabase = clientAdmin();

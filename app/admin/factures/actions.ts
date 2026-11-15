@@ -951,3 +951,124 @@ export async function retirerLigneFacture(
 
   revalidatePath(`/factures/${factureId}`);
 }
+
+/* ---------------------------------------------------------------------
+ *  Changer l'état d'une facture depuis la liste
+ *
+ *  Les trois gestes de correction existaient, mais chacun derrière son
+ *  bouton, sur une autre page. En pratique on veut juste dire « cette
+ *  facture n'en est pas là » et passer à la suivante. Un menu dans la
+ *  colonne État suffit, à condition qu'il refuse clairement ce que la
+ *  numérotation continue interdit.
+ * ------------------------------------------------------------------ */
+
+export type Etat = "brouillon" | "a_envoyer" | "envoyee" | "payee";
+
+export type Resultat = { ok: true } | { ok: false; message: string };
+
+export async function changerEtat(id: string, etat: Etat): Promise<Resultat> {
+  await exigerAdmin();
+  if (!id) return { ok: false, message: "Facture inconnue." };
+
+  const supabase = clientAdmin();
+
+  const { data: facture } = await supabase
+    .from("factures")
+    .select("id, statut, numero, envoyee_le, remise_le, transferee_le, payee_le")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!facture) return { ok: false, message: "Facture introuvable." };
+
+  if (facture.statut === "brouillon" && etat !== "brouillon") {
+    return {
+      ok: false,
+      message:
+        "Ce brouillon n'a pas encore de numéro. Ouvrez-le et émettez-le : " +
+        "c'est l'émission qui lui en donne un.",
+    };
+  }
+
+  if (etat === "brouillon") {
+    const { data: rendu, error } = await supabase.rpc("remettre_en_brouillon", {
+      facture: id,
+    });
+
+    if (error) {
+      const m = error.message ?? "";
+      console.error("retour au brouillon", error);
+      return {
+        ok: false,
+        message: m.includes("NUMERO_NON_DERNIER")
+          ? "Elle n'est pas la dernière émise de l'année : lui reprendre son " +
+            "numéro laisserait un trou dans la série, ce qu'une numérotation " +
+            "continue interdit. Émettez plutôt une facture rectificative."
+          : m.includes("NUMERO_HORS_SERIE")
+            ? "Son numéro ne suit pas la forme de la série : le site ne sait " +
+              "pas à quel rang le rendre."
+            : m.includes("DEJA_BROUILLON")
+              ? "C'est déjà un brouillon."
+              : "Le retour au brouillon a échoué. Rechargez la page.",
+      };
+    }
+
+    await supabase.from("journal").insert({
+      acteur: "pauline",
+      objet: "facture",
+      objet_id: id,
+      action: `retour_au_brouillon:${rendu ?? "?"}`,
+    });
+
+    revalidatePath("/admin/factures");
+    return { ok: true };
+  }
+
+  // Les trois autres états ne touchent ni au numéro ni aux dates
+  // d'émission : ce sont des pointages, et ils se défont sans dommage.
+  const champs: Record<string, string | null> =
+    etat === "a_envoyer"
+      ? {
+          envoyee_le: null,
+          remise_le: null,
+          transferee_le: null,
+          message_accompagnement: null,
+          payee_le: null,
+          mode_reglement: null,
+          statut: "envoyee",
+        }
+      : etat === "envoyee"
+        ? {
+            // Déjà transmise d'une façon ou d'une autre : on ne réécrit
+            // pas la date, qui dit quand elle est réellement partie.
+            ...(facture.envoyee_le || facture.remise_le || facture.transferee_le
+              ? {}
+              : { envoyee_le: new Date().toISOString() }),
+            payee_le: null,
+            mode_reglement: null,
+            statut: "envoyee",
+          }
+        : {
+            statut: "payee",
+            payee_le: facture.payee_le ?? new Date().toISOString(),
+            ...(facture.envoyee_le || facture.remise_le || facture.transferee_le
+              ? {}
+              : { envoyee_le: new Date().toISOString() }),
+          };
+
+  const { error } = await supabase.from("factures").update(champs).eq("id", id);
+
+  if (error) {
+    console.error("changement d'état", error);
+    return { ok: false, message: "L'enregistrement a échoué. Réessayez." };
+  }
+
+  await supabase.from("journal").insert({
+    acteur: "pauline",
+    objet: "facture",
+    objet_id: id,
+    action: `etat:${etat}`,
+  });
+
+  revalidatePath("/admin/factures");
+  return { ok: true };
+}

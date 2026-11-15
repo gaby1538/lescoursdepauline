@@ -1935,3 +1935,63 @@ table.liste .droite { text-align: right; }
   border-color: var(--foret);
   color: var(--foret);
 }
+
+/* La mention sous la grille des tarifs : lisible, mais à sa place. */
+.tarifs-mention {
+  margin: 18px auto 0;
+  max-width: 64ch;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--texte-gris);
+}
+
+/* =====================================================================
+   L'état d'une facture, modifiable là où on le lit.
+   Le menu reprend l'allure d'une étiquette : on ne veut pas d'un
+   formulaire dans un tableau, on veut une étiquette qui s'ouvre.
+   ===================================================================== */
+
+.etat-vif { display: inline-block; text-align: left; }
+
+.etat-vif__menu {
+  appearance: none;
+  font: inherit;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 4px 26px 4px 12px;
+  border: 1px solid var(--bordure);
+  border-radius: 999px;
+  background: var(--creme-fonce);
+  color: var(--texte-doux);
+  cursor: pointer;
+  /* Le chevron, dessiné plutôt qu'importé : une icône de plus pour
+     trois pixels ne vaut pas une requête. */
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 13px) 52%, calc(100% - 9px) 52%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+  transition: border-color 0.15s, color 0.15s;
+}
+.etat-vif__menu:hover { border-color: var(--foret); color: var(--foret); }
+.etat-vif__menu:focus-visible {
+  outline: 2px solid var(--or);
+  outline-offset: 2px;
+}
+.etat-vif__menu:disabled { opacity: 0.55; cursor: wait; }
+
+.etat-vif__menu--attente {
+  background-color: var(--or-pale, #fdf6e4);
+  border-color: var(--or-clair);
+  color: var(--or-texte);
+  font-weight: 600;
+}
+
+.etat-vif__erreur {
+  margin: 8px 0 0;
+  max-width: 34ch;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--or-texte);
+}
