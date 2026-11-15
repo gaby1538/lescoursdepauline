@@ -2,7 +2,7 @@ import "server-only";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { clientAdmin } from "./supabase";
 import { euros } from "./constantes";
-import { moisLong } from "./dates";
+import { periodeLisible } from "./dates";
 
 /**
  * La facture en PDF, fabriquée en mémoire.
@@ -218,11 +218,22 @@ export async function pdfDeFacture(
     yCol -= 13;
   }
 
+  // La période ne s'imprime que si elle existe et que le réglage la
+  // veut. Sans elle, la colonne disparaît : une étiquette « PÉRIODE »
+  // suivie d'un tiret n'apprend rien à personne.
+  const periode = periodeLisible(
+    facture.periode_debut,
+    facture.periode_fin,
+    p?.afficher_periode !== false
+  );
+
   let yPer = depart;
-  const colonne2 = MARGE + 390;
-  ecrire(plume, "PÉRIODE", colonne2, yPer, { taille: 7.5, gras: true, couleur: OR });
-  yPer -= 14;
-  ecrire(plume, moisLong(facture.periode_debut), colonne2, yPer, { taille: 10 });
+  if (periode) {
+    const colonne2 = MARGE + 390;
+    ecrire(plume, "PÉRIODE", colonne2, yPer, { taille: 7.5, gras: true, couleur: OR });
+    yPer -= 14;
+    ecrire(plume, periode, colonne2, yPer, { taille: 10 });
+  }
 
   y = Math.min(y, yCol, yPer) - 26;
 

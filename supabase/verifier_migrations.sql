@@ -148,4 +148,16 @@ union all select
 from information_schema.columns
  where table_name = 'parametres' and column_name = 'telephone_contact'
 
+union all select
+  'Période facultative (0024)',
+  to_char(count(*), '9') || ' / 2 éléments',
+  case when count(*) = 2 then 'OK' else 'MANQUANTE' end
+from (
+  select 1 from information_schema.columns
+   where table_name = 'factures' and column_name = 'periode_debut'
+     and is_nullable = 'YES'
+  union all select 1 from information_schema.columns
+   where table_name = 'parametres' and column_name = 'afficher_periode'
+) t
+
 order by 1;

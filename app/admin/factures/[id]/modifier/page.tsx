@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { clientAdmin } from "@/lib/supabase";
 import { euros } from "@/lib/constantes";
-import { moisLong } from "@/lib/dates";
+import { periodeLisible } from "@/lib/dates";
 import { etiquette, saisie } from "@/components/Champs";
 import {
   annulerEnvoi,
@@ -87,7 +87,7 @@ export default async function ModifierFacture({
     facture.transferee_le
   );
   const defaut = `${client?.prenom ?? ""} ${client?.nom ?? ""}`.trim();
-  const mois = moisLong(facture.periode_debut);
+  const mois = periodeLisible(facture.periode_debut, facture.periode_fin);
   const titre = mois ? mois.charAt(0).toUpperCase() + mois.slice(1) : "Brouillon";
 
   return (
@@ -356,6 +356,38 @@ export default async function ModifierFacture({
                         }}
                       />
                     </div>
+                    <div className="duo">
+                      <div>
+                        <label htmlFor="periode_debut" style={etiquette}>
+                          Période — du
+                        </label>
+                        <input
+                          id="periode_debut"
+                          name="periode_debut"
+                          type="date"
+                          defaultValue={facture.periode_debut ?? ""}
+                          style={saisie}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="periode_fin" style={etiquette}>
+                          au
+                        </label>
+                        <input
+                          id="periode_fin"
+                          name="periode_fin"
+                          type="date"
+                          defaultValue={facture.periode_fin ?? ""}
+                          style={saisie}
+                        />
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--texte-gris)" }}>
+                      Videz les deux champs pour que la facture ne porte aucune
+                      période : chaque ligne dit déjà de quand date le cours. Pour
+                      les retirer de toutes les factures d&apos;un coup, c&apos;est
+                      dans <Link href="/admin/reglages">les réglages</Link>.
+                    </p>
                     <div>
                       <label htmlFor="note" style={etiquette}>
                         Mention portée sur la facture (facultative)

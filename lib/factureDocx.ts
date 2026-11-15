@@ -12,7 +12,7 @@ import {
   WidthType,
 } from "docx";
 import { euros } from "./constantes";
-import { moisLong } from "./dates";
+import { periodeLisible } from "./dates";
 
 export type DonneesFacture = {
   numero: string | null;
@@ -20,7 +20,9 @@ export type DonneesFacture = {
   emise_le: string | null;
   echeance_le: string | null;
   payee_le: string | null;
-  periode_debut: string;
+  periode_debut: string | null;
+  periode_fin?: string | null;
+  afficher_periode?: boolean;
   total_cents: number;
   note: string | null;
   destinataire_nom: string | null;
@@ -110,6 +112,12 @@ function cellule(
  * retient, et la modifier ici ne la modifie pas là-bas.
  */
 export async function factureEnWord(f: DonneesFacture): Promise<Buffer> {
+  const periode = periodeLisible(
+    f.periode_debut,
+    f.periode_fin,
+    f.afficher_periode !== false
+  );
+
   const p = f.emetteur;
   const client = f.client;
   const facture = f;
@@ -268,7 +276,7 @@ export async function factureEnWord(f: DonneesFacture): Promise<Buffer> {
             }`,
             { gris: true }
           ),
-          ligne(`Période : ${moisLong(facture.periode_debut)}`, { gris: true }),
+          ...(periode ? [ligne(`Période : ${periode}`, { gris: true })] : []),
           new Paragraph({ text: "", spacing: { after: 300 } }),
 
           colonnes,

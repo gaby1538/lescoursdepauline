@@ -39,6 +39,7 @@ export async function GET(
 
   const contenu = await factureEnWord({
     ...(facture as DonneesFacture),
+    afficher_periode: p?.afficher_periode !== false,
     lignes: (lignes ?? []).map((l) => ({
       description: l.description,
       quantite: Number(l.quantite),

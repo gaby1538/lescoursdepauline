@@ -5,12 +5,7 @@ import { dossierConnecte } from "@/lib/session";
 import { clientAdmin } from "@/lib/supabase";
 import { seDeconnecter } from "@/app/compte/actions";
 import DemandeAnnulation from "./DemandeAnnulation";
-import {
-  creneauLong,
-  blocLong,
-  moisLong,
-  regrouperReservations,
-} from "@/lib/dates";
+import { blocLong, creneauLong, moisLong, periodeLisible, regrouperReservations } from "@/lib/dates";
 import { euros } from "@/lib/constantes";
 
 export const metadata: Metadata = { title: "Mon espace" };
@@ -87,7 +82,7 @@ export default async function MonEspace({
       .order("cree_le", { ascending: false }),
     supabase
       .from("factures")
-      .select("id, numero, statut, total_cents, periode_debut, echeance_le")
+      .select("id, numero, statut, total_cents, periode_debut, periode_fin, echeance_le")
       .eq("dossier_id", dossier.id)
       .neq("statut", "brouillon")
       .order("periode_debut", { ascending: false }),
@@ -475,7 +470,7 @@ export default async function MonEspace({
                       <span style={{ minWidth: 0 }}>
                         <span className="entree-cote__nom">{f.numero ?? "—"}</span>
                         <span className="entree-cote__note">
-                          {moisLong(f.periode_debut)}
+                          {periodeLisible(f.periode_debut, f.periode_fin) ?? "facture"}
                           {f.statut === "payee"
                             ? " · réglée"
                             : f.echeance_le

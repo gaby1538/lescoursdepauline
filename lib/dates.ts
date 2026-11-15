@@ -322,3 +322,26 @@ export function regrouperReservations<
   }
   return blocs;
 }
+
+/**
+ * La période d'une facture, telle qu'elle doit s'imprimer — ou rien.
+ *
+ * Trois cas donnent « rien » : le réglage qui l'a retirée des
+ * documents, une facture qui n'en porte pas, et c'est tout à fait
+ * normal depuis qu'on ne facture plus par mois. Les lignes disent déjà
+ * de quand datent les cours ; une mention fausse est pire qu'une
+ * mention absente.
+ */
+export function periodeLisible(
+  debut: string | null | undefined,
+  fin?: string | null,
+  afficher: boolean = true
+): string | null {
+  if (!afficher || !debut) return null;
+
+  const premier = moisLong(debut);
+  if (!fin) return premier;
+
+  const dernier = moisLong(fin);
+  return premier === dernier ? premier : `${premier} — ${dernier}`;
+}

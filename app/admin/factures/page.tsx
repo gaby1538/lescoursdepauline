@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { clientAdmin } from "@/lib/supabase";
 import { euros } from "@/lib/constantes";
-import { dureeCourte, moisLong } from "@/lib/dates";
+import { dureeCourte, moisLong, periodeLisible } from "@/lib/dates";
 import { etiquette, saisie } from "@/components/Champs";
 import MoisPrecis from "./MoisPrecis";
 import Etat from "./Etat";
@@ -20,7 +20,8 @@ type Facture = {
   id: string;
   numero: string | null;
   statut: string;
-  periode_debut: string;
+  periode_debut: string | null;
+  periode_fin: string | null;
   total_cents: number;
   echeance_le: string | null;
   envoyee_le: string | null;
@@ -187,7 +188,7 @@ export default async function Factures({
   const { data } = await supabase
     .from("factures")
     .select(
-      "id, numero, statut, emise_le, periode_debut, total_cents, echeance_le, envoyee_le, remise_le, transferee_le, payee_le, dossiers (eleve_prenom, eleve_classe, prenom, nom, email)"
+      "id, numero, statut, emise_le, periode_debut, periode_fin, total_cents, echeance_le, envoyee_le, remise_le, transferee_le, payee_le, dossiers (eleve_prenom, eleve_classe, prenom, nom, email)"
     )
     .order("cree_le", { ascending: false });
 
@@ -475,7 +476,11 @@ export default async function Factures({
                   : f.dossiers?.eleve_prenom || nomDuDossier(f.dossiers);
                 const detail = manuelle
                   ? `${nomDuDossier(f.dossiers)} · hors réservation · facture manuelle`
-                  : [f.dossiers?.eleve_classe, moisLong(f.periode_debut), dureeCourte(heures)]
+                  : [
+                      f.dossiers?.eleve_classe,
+                      periodeLisible(f.periode_debut, f.periode_fin),
+                      dureeCourte(heures),
+                    ]
                       .filter(Boolean)
                       .join(" · ");
                 const prevu = numeroPrevu(suggestion as string | null, i);
@@ -570,7 +575,9 @@ export default async function Factures({
                           <span style={{ fontVariantNumeric: "tabular-nums" }}>
                             {f.numero}
                           </span>{" "}
-                          · {moisLong(f.periode_debut)} ·{" "}
+                          {periodeLisible(f.periode_debut, f.periode_fin)
+                            ? ` · ${periodeLisible(f.periode_debut, f.periode_fin)}`
+                            : ""}{" · "}
                           {age === 0
                             ? "émise aujourd'hui"
                             : `émise il y a ${age} jour${age > 1 ? "s" : ""}${
@@ -597,8 +604,19 @@ export default async function Factures({
                       <a
                         href={`/admin/factures/${f.id}/pdf`}
                         className="action action--contour"
+                        aria-label={`Télécharger la facture ${f.numero ?? ""} en PDF`}
                       >
-                        Télécharger
+                        PDF
+                      </a>
+                      {/* Le Word sert quand il faut corriger une ligne à la
+                          main avant d'envoyer : il doit se trouver sans
+                          chercher, pas au fond d'une autre page. */}
+                      <a
+                        href={`/admin/factures/${f.id}/docx`}
+                        className="action action--contour"
+                        aria-label={`Télécharger la facture ${f.numero ?? ""} en Word`}
+                      >
+                        Word
                       </a>
 
                       {/* Les deux façons de se passer de l'envoi du site
@@ -663,7 +681,7 @@ export default async function Factures({
                   </td>
                   <td>{f.dossiers?.eleve_prenom || nomDuDossier(f.dossiers)}</td>
                   <td style={{ color: "var(--texte-gris)" }}>
-                    {moisLong(f.periode_debut)}
+                    {periodeLisible(f.periode_debut, f.periode_fin) ?? "—"}
                   </td>
                   <td className="droite" style={{ fontVariantNumeric: "tabular-nums" }}>
                     {euros(f.total_cents)}

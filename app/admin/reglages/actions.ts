@@ -43,6 +43,8 @@ export async function enregistrerReglages(formulaire: FormData): Promise<void> {
     .from("parametres")
     .update({
       ...champs,
+      afficher_periode:
+        String(formulaire.get("afficher_periode") ?? "") === "1",
       rappel_actif: String(formulaire.get("rappel_actif") ?? "") === "1",
       recap_actif: String(formulaire.get("recap_actif") ?? "") === "1",
       sauvegarde_active: String(formulaire.get("sauvegarde_active") ?? "") === "1",

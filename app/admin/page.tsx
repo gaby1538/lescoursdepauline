@@ -39,9 +39,14 @@ const MESSAGES: Record<string, string> = {
 export default async function TableauDeBord({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; erreur?: string; periode?: string }>;
+  searchParams: Promise<{
+    ok?: string;
+    erreur?: string;
+    periode?: string;
+    passes?: string;
+  }>;
 }) {
-  const { ok, erreur, periode } = await searchParams;
+  const { ok, erreur, periode, passes } = await searchParams;
   const supabase = clientAdmin();
   const maintenant = new Date().toISOString();
   const debutMois = `${new Date().toISOString().slice(0, 7)}-01`;
@@ -61,6 +66,18 @@ export default async function TableauDeBord({
   // Une semaine, c'est du lundi au dimanche — pas ce qu'il en reste.
   // Bornée à « maintenant », la semaine en cours affichait zéro cours
   // le dimanche soir, ce qui ne décrit rien du tout.
+  // L'archive des cours donnés : repliée, et bornée. « Tout » sur une
+  // année de cours ferait une page interminable, donc une limite, et
+  // elle se dit.
+  const archive = ["mois", "precedent", "tout"].includes(passes ?? "")
+    ? (passes as string)
+    : "mois";
+
+  const moisPrecedent = new Date();
+  moisPrecedent.setUTCDate(1);
+  moisPrecedent.setUTCMonth(moisPrecedent.getUTCMonth() - 1);
+  const debutPrecedent = `${moisPrecedent.toISOString().slice(0, 7)}-01`;
+
   let debutPeriode: string;
   let finPeriode: string;
   let nomPeriode: string;
@@ -94,6 +111,7 @@ export default async function TableauDeBord({
     duMois,
     impayees,
     parametres,
+    coursPasses,
   ] = await Promise.all([
     // Les demandes qui attendent une réponse. Le créneau est déjà pris,
     // mais rien n'est confirmé à l'élève.
@@ -180,6 +198,30 @@ export default async function TableauDeBord({
       .select("reservations_suspendues, delai_annulation_h")
       .eq("id", true)
       .maybeSingle(),
+    (() => {
+      let q = supabase
+        .from("reservations")
+        .select(
+          "id, dossier_id, debut, fin, statut, sujet, prix_cents, facture_id, dossiers (prenom, nom, eleve_prenom, eleve_classe)"
+        )
+        .not("validee_le", "is", null)
+        .in("statut", [
+          "effectuee",
+          "absent",
+          "annulee_hors_delai",
+          "annulee_par_pauline",
+        ])
+        .lt("debut", maintenant);
+
+      if (archive === "mois") q = q.gte("debut", `${debutMois}T00:00:00Z`);
+      if (archive === "precedent") {
+        q = q
+          .gte("debut", `${debutPrecedent}T00:00:00Z`)
+          .lt("debut", `${debutMois}T00:00:00Z`);
+      }
+
+      return q.order("debut", { ascending: false }).limit(300);
+    })(),
   ]);
 
   // Une requête qui échoue renvoie data: null, que tout le code traite
@@ -196,6 +238,7 @@ export default async function TableauDeBord({
     ["recette du mois", duMois],
     ["factures impayées", impayees],
     ["réglages", parametres],
+    ["cours passés", coursPasses],
   ]
     .filter(([, r]) => (r as { error?: unknown }).error)
     .map(([quoi, r]) => ({
@@ -211,6 +254,21 @@ export default async function TableauDeBord({
   // touchent se retrouveraient fondues en une.
   const memeCours = (a: Prochain, b: Prochain) =>
     a.dossier_id === b.dossier_id && a.sujet === b.sujet;
+
+  type Passe = Prochain & {
+    statut: string;
+    prix_cents: number;
+    facture_id: string | null;
+  };
+
+  const blocsPasses = regrouperReservations(
+    (coursPasses.data ?? []) as unknown as Passe[],
+    (a, b) =>
+      a.dossier_id === b.dossier_id &&
+      a.statut === b.statut &&
+      a.sujet === b.sujet &&
+      !a.facture_id === !b.facture_id
+  ).reverse();
 
   const liste = regrouperReservations(
     (prochains.data ?? []) as unknown as Prochain[],
@@ -878,10 +936,130 @@ export default async function TableauDeBord({
         </div>
 
 
+        {/* L'archive : fermée d'emblée, parce qu'on ouvre le tableau de
+            bord pour ce qui vient, pas pour ce qui est passé. Ouverte,
+            elle reste ouverte tant qu'on change de période. */}
+        <details
+          className="repli-discret"
+          style={{ marginTop: 48 }}
+          open={!!passes}
+        >
+          <summary>Les cours déjà donnés</summary>
+          <div className="repli-discret__corps" style={{ maxWidth: "none" }}>
+            <div className="periodes" style={{ marginTop: 0 }}>
+              {[
+                ["mois", "Ce mois-ci"],
+                ["precedent", "Le mois dernier"],
+                ["tout", "Tout"],
+              ].map(([cle, nom]) => (
+                <Link
+                  key={cle}
+                  href={`/admin?passes=${cle}`}
+                  className={archive === cle ? "periode periode--actif" : "periode"}
+                >
+                  {nom}
+                </Link>
+              ))}
+            </div>
+
+            {blocsPasses.length === 0 ? (
+              <p style={{ marginTop: 16, fontSize: 15, color: "var(--texte-doux)" }}>
+                Aucun cours sur cette période.
+              </p>
+            ) : (
+              <>
+                <div className="tableau-enveloppe" style={{ marginTop: 16 }}>
+                  <table className="liste">
+                    <tbody>
+                      {blocsPasses.map((bloc) => {
+                        const r = bloc.tete;
+                        const total = bloc.lignes.reduce(
+                          (t, l) => t + l.prix_cents,
+                          0
+                        );
+                        return (
+                          <tr key={r.id}>
+                            <td>
+                              <strong>
+                                {bloc.heures > 1
+                                  ? blocLong(bloc)
+                                  : creneauLong(r.debut)}
+                              </strong>
+                              {r.sujet ? (
+                                <>
+                                  <br />
+                                  <span
+                                    style={{ fontSize: 13, color: "var(--texte-gris)" }}
+                                  >
+                                    {r.sujet}
+                                  </span>
+                                </>
+                              ) : null}
+                            </td>
+                            <td>
+                              {r.dossiers?.eleve_prenom ?? "—"}
+                              {r.dossiers?.eleve_classe ? (
+                                <>
+                                  <br />
+                                  <span
+                                    style={{ fontSize: 13, color: "var(--texte-gris)" }}
+                                  >
+                                    {r.dossiers.eleve_classe}
+                                  </span>
+                                </>
+                              ) : null}
+                            </td>
+                            <td>
+                              <span
+                                className={
+                                  r.statut === "effectuee"
+                                    ? "etiquette"
+                                    : "etiquette etiquette--attente"
+                                }
+                              >
+                                {ETAT_PASSE[r.statut] ?? r.statut}
+                              </span>
+                            </td>
+                            <td className="droite">
+                              <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                                {euros(total)}
+                              </span>
+                              <br />
+                              <span
+                                style={{ fontSize: 13, color: "var(--texte-gris)" }}
+                              >
+                                {r.facture_id ? "facturé" : "à facturer"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {blocsPasses.length >= 290 && (
+                  <p style={{ marginTop: 12, fontSize: 13, color: "var(--texte-gris)" }}>
+                    Les 300 séances les plus récentes. Au-delà, l&apos;export du
+                    livre des recettes donne tout, depuis{" "}
+                    <Link href="/admin/factures">les factures</Link>.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </details>
+
       </div>
     </section>
   );
 }
+
+const ETAT_PASSE: Record<string, string> = {
+  effectuee: "Cours donné",
+  absent: "Absent",
+  annulee_hors_delai: "Annulé hors délai",
+  annulee_par_pauline: "Annulé par vous",
+};
 
 function Chiffre({ valeur, libelle }: { valeur: string; libelle: string }) {
   return (

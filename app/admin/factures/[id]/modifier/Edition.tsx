@@ -307,6 +307,20 @@ export default function Edition({
               <button type="submit" className="action action--contour action--grand">
                 Visualiser
               </button>
+              {/* Un brouillon se télécharge aussi : c'est souvent comme ça
+                  qu'on relit, ou qu'on retouche une ligne avant d'émettre. */}
+              <a
+                href={`/admin/factures/${factureId}/docx`}
+                className="action action--discret"
+              >
+                Word
+              </a>
+              <a
+                href={`/admin/factures/${factureId}/pdf`}
+                className="action action--discret"
+              >
+                PDF
+              </a>
             </div>
 
             <p className="bloc-numero__loi">

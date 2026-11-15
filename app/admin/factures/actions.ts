@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exigerAdmin } from "@/lib/admin";
 import { clientAdmin } from "@/lib/supabase";
-import { blocLong, creneauLong, moisLong, regrouperReservations } from "@/lib/dates";
+import { blocLong, creneauLong, moisLong, periodeLisible, regrouperReservations } from "@/lib/dates";
 import { factureEmise, facturePourTransfert } from "@/lib/emails";
 import { pdfDeFacture } from "@/lib/facturePdf";
 
@@ -247,12 +247,25 @@ export async function enregistrerFacture(formulaire: FormData): Promise<void> {
     String(formulaire.get("destinataire_adresse") ?? "").trim() || null;
   const note = String(formulaire.get("note") ?? "").trim() || null;
 
+  // Les deux bornes vont ensemble : l'une sans l'autre ne veut rien
+  // dire, et la base le refuserait. Vider les deux retire la mention
+  // de période du document.
+  const jour = (champ: string) => {
+    const v = String(formulaire.get(champ) ?? "").trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+  };
+  const periodeDebut = jour("periode_debut");
+  const periodeFin = jour("periode_fin");
+  const periodeEntiere = periodeDebut && periodeFin;
+
   await supabase
     .from("factures")
     .update({
       destinataire_nom: destinataireNom,
       destinataire_adresse: destinataireAdresse,
       note,
+      periode_debut: periodeEntiere ? periodeDebut : null,
+      periode_fin: periodeEntiere ? periodeFin : null,
     })
     .eq("id", id);
 
@@ -377,7 +390,7 @@ async function expedier(id: string, mot: string): Promise<never> {
   const { data: facture } = await supabase
     .from("factures")
     .select(
-      "id, numero, total_cents, echeance_le, periode_debut, envoyee_le, remise_le, transferee_le, dossiers (prenom, email)"
+      "id, numero, total_cents, echeance_le, periode_debut, periode_fin, envoyee_le, remise_le, transferee_le, dossiers (prenom, email)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -424,7 +437,8 @@ async function expedier(id: string, mot: string): Promise<never> {
       : "",
     lien: `${site}/factures/${facture.id}`,
     heures: count ?? 0,
-    periode: moisLong(facture.periode_debut),
+    periode:
+      periodeLisible(facture.periode_debut, facture.periode_fin) ?? "",
     message,
     // Pauline reçoit la même chose que la famille : la facture envoyée
     // se retrouve dans sa messagerie, avec sa date.
@@ -482,7 +496,7 @@ export async function transfererFacture(formulaire: FormData): Promise<void> {
   const { data: facture } = await supabase
     .from("factures")
     .select(
-      "id, numero, total_cents, echeance_le, periode_debut, envoyee_le, remise_le, transferee_le, dossiers (prenom, email)"
+      "id, numero, total_cents, echeance_le, periode_debut, periode_fin, envoyee_le, remise_le, transferee_le, dossiers (prenom, email)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -531,7 +545,8 @@ export async function transfererFacture(formulaire: FormData): Promise<void> {
       : "",
     lien: `${site}/factures/${facture.id}`,
     heures: count ?? 0,
-    periode: moisLong(facture.periode_debut),
+    periode:
+      periodeLisible(facture.periode_debut, facture.periode_fin) ?? "",
     piece,
   });
 

@@ -155,9 +155,11 @@ export default async function ApercuFacture({
 
         {!decider && !brouillon && (
           <p className="facture__impression">
-            Pour l&apos;enregistrer en PDF :{" "}
+            Pour l&apos;enregistrer :{" "}
             <a href={`/admin/factures/${id}/pdf`}>télécharger le PDF</a>, celui-là
-            même qui part en pièce jointe. Une erreur à réparer ?{" "}
+            même qui part en pièce jointe, ou{" "}
+            <a href={`/admin/factures/${id}/docx`}>la version Word</a> si une ligne
+            doit être retouchée à la main. Une erreur à réparer ?{" "}
             <Link href={`/admin/factures/${id}/modifier`}>
               corriger l&apos;état de cette facture
             </Link>

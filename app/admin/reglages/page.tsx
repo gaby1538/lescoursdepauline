@@ -353,6 +353,26 @@ export default async function Reglages({
                 />
               </div>
               <div>
+                <label className="case-a-cocher" style={{ marginTop: 0 }}>
+                  <input
+                    type="checkbox"
+                    name="afficher_periode"
+                    value="1"
+                    defaultChecked={p.afficher_periode ?? true}
+                  />
+                  <span>
+                    Indiquer la période facturée
+                    <span className="case-a-cocher__aide">
+                      Décoché, aucune facture ne porte de mention « Période »,
+                      même celles qui en ont une enregistrée. Les lignes disent
+                      déjà de quand datent les cours — et une période héritée du
+                      mois de préparation est fausse dès qu&apos;une facture
+                      réunit plusieurs mois.
+                    </span>
+                  </span>
+                </label>
+              </div>
+              <div>
                 <label htmlFor="telephone_contact" style={etiquette}>
                   Numéro WhatsApp
                 </label>

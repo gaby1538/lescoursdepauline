@@ -1,5 +1,5 @@
 import { euros } from "@/lib/constantes";
-import { moisLong } from "@/lib/dates";
+import { moisLong, periodeLisible } from "@/lib/dates";
 
 /**
  * La facture elle-même, telle qu'elle se lit.
@@ -19,7 +19,8 @@ export type FactureAffichee = {
   emise_le: string | null;
   echeance_le: string | null;
   payee_le: string | null;
-  periode_debut: string;
+  periode_debut: string | null;
+  periode_fin?: string | null;
   total_cents: number;
   note: string | null;
   destinataire_nom: string | null;
@@ -35,6 +36,7 @@ export type LigneAffichee = {
 };
 
 export type ReglagesAffiches = {
+  afficher_periode?: boolean | null;
   exploitante?: string | null;
   adresse_postale?: string | null;
   siret?: string | null;
@@ -70,6 +72,14 @@ export default function FactureDocument({
   numeroAVenir?: string | null;
 }) {
   const brouillon = facture.statut === "brouillon";
+
+  // Deux raisons de ne rien écrire : le réglage qui a retiré la période
+  // des documents, ou une facture qui n'en porte pas.
+  const periode = periodeLisible(
+    facture.periode_debut,
+    facture.periode_fin,
+    reglages?.afficher_periode !== false
+  );
 
   return (
     <div className="facture">
@@ -142,12 +152,14 @@ export default function FactureDocument({
             ) : null}
           </p>
         </div>
-        <div>
-          <p className="surtitre">Période</p>
-          <p style={{ fontSize: 15.5, lineHeight: 1.6, color: "var(--texte)" }}>
-            {moisLong(facture.periode_debut)}
-          </p>
-        </div>
+        {periode && (
+          <div>
+            <p className="surtitre">Période</p>
+            <p style={{ fontSize: 15.5, lineHeight: 1.6, color: "var(--texte)" }}>
+              {periode}
+            </p>
+          </div>
+        )}
       </div>
 
       <table className="liste facture__lignes">
