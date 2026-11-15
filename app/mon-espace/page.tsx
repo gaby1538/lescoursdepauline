@@ -95,7 +95,7 @@ export default async function MonEspace({
 
   const { data: reglages } = await supabase
     .from("parametres")
-    .select("delai_annulation_h")
+    .select("delai_annulation_h, telephone_contact, email_contact")
     .eq("id", true)
     .maybeSingle();
 
@@ -132,39 +132,65 @@ export default async function MonEspace({
   const blocsPassees = regrouperReservations(passees, memeNature).reverse();
 
 
+  const prochain = blocsAVenir[0] ?? null;
+  const suivants = blocsAVenir.slice(1);
+
+  const eleve = dossier.eleve_prenom ?? "";
+  const classe = dossier.eleve_classe ?? "";
+
+  /** « aujourd'hui », « demain », « dans 3 jours ». */
+  function dansCombien(debut: string): string {
+    const jours = Math.round(
+      (Date.parse(debut.slice(0, 10)) - Date.parse(maintenant.slice(0, 10))) / 86400000
+    );
+    if (jours <= 0) return "aujourd'hui";
+    if (jours === 1) return "demain";
+    if (jours < 7) return `dans ${jours} jours`;
+    if (jours < 14) return "dans une semaine";
+    return `dans ${Math.round(jours / 7)} semaines`;
+  }
+
+  // Un message déjà rempli épargne à la famille d'avoir à se présenter,
+  // et à Pauline de demander de qui il s'agit.
+  const intro = `Bonjour Pauline, je vous écris au sujet de ${
+    eleve || "mon enfant"
+  }${classe ? ` (${classe})` : ""}. `;
+
+  const chiffres = (reglages?.telephone_contact ?? "").replace(/\D/g, "");
+  const international = chiffres.startsWith("0") ? `33${chiffres.slice(1)}` : chiffres;
+  const whatsapp =
+    international.length >= 10
+      ? `https://wa.me/${international}?text=${encodeURIComponent(intro)}`
+      : null;
+
+  const courriel = `mailto:${
+    reglages?.email_contact ?? "contact.capsvt@gmail.com"
+  }?subject=${encodeURIComponent(
+    `Au sujet de ${eleve || "mon enfant"}`
+  )}&body=${encodeURIComponent(intro)}`;
+
+  const aRegler = (factures ?? []).filter((f) => f.statut !== "payee").length;
+
   return (
     <section className="section">
       <div className="conteneur">
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 20,
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            marginBottom: 40,
-          }}
-        >
-          <div>
+
+        <div className="espace__tete">
+          <div style={{ minWidth: 0 }}>
             <p className="surtitre">Espace élève</p>
-            <h1 style={{ fontSize: 42, lineHeight: 1.12 }}>
-              Bonjour <em className="accent">{dossier.prenom ?? ""}</em>
+            <h1 style={{ fontSize: 38, lineHeight: 1.12 }}>
+              Bonjour <em className="accent">{dossier.prenom ?? eleve}</em>
             </h1>
-            <p style={{ marginTop: 10, fontSize: 15, color: "var(--texte-gris)" }}>
-              {dossier.eleve_prenom}
-              {dossier.eleve_classe ? ` · ${dossier.eleve_classe}` : ""} · {dossier.email}
+            <p style={{ marginTop: 9, fontSize: 14.5, color: "var(--texte-gris)" }}>
+              {eleve}
+              {classe ? ` · ${classe}` : ""}
             </p>
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-            <Link href="/reserver" className="bouton bouton--principal bouton--compact">
-              Réserver un cours
-            </Link>
-            <form action={seDeconnecter}>
-              <button type="submit" className="bouton bouton--secondaire bouton--compact">
-                Se déconnecter
-              </button>
-            </form>
-          </div>
+          <form action={seDeconnecter}>
+            <button type="submit" className="action action--contour">
+              Se déconnecter
+            </button>
+          </form>
         </div>
 
         {demande === "deplacement" && (
@@ -174,226 +200,327 @@ export default async function MonEspace({
           </p>
         )}
 
-        <Bloc titre="Cours à venir">
-          {aVenir.length === 0 ? (
-            <Vide>
-              Aucun cours programmé.{" "}
-              <Link href="/reserver">Choisissez un créneau</Link>, il n&apos;y a plus
-              rien à remplir.
-            </Vide>
-          ) : (
-            blocsAVenir.map((bloc) => {
-              const r = bloc.tete;
-              return (
-              <article key={r.id} className="cours">
-                <div>
-                  <p className="cours__quand">
-                    {bloc.heures > 1 ? blocLong(bloc) : creneauLong(r.debut)}
+        <div className="espace">
+
+          {/* ---- le prochain cours : ce pour quoi on ouvre la page ---- */}
+          <div className="espace__hero">
+            {prochain ? (
+              <>
+                <div style={{ minWidth: 0, flex: "1 1 320px" }}>
+                  <p className="hero__surtitre">Votre prochain cours</p>
+                  <p className="hero__quand">
+                    {prochain.heures > 1
+                      ? blocLong(prochain)
+                      : creneauLong(prochain.tete.debut)}
                   </p>
-                  {bloc.heures > 1 ? (
-                    <p className="cours__sujet">
-                      {bloc.heures} heures d&apos;affilée
-                      {r.sujet ? ` · ${r.sujet}` : ""}
+                  <p className="hero__detail">
+                    {prochain.heures > 1
+                      ? `${prochain.heures} heures d'affilée`
+                      : "Une heure"}
+                    {" · "}
+                    {dansCombien(prochain.tete.debut)}
+                    {prochain.tete.validee_le
+                      ? ` · ${euros(
+                          prochain.lignes.reduce((t, l) => t + l.prix_cents, 0)
+                        )}`
+                      : ""}
+                    {prochain.tete.sujet ? ` · ${prochain.tete.sujet}` : ""}
+                  </p>
+
+                  {!prochain.tete.validee_le && (
+                    <p className="hero__avis">
+                      En attente de validation — le créneau vous est gardé le temps
+                      que Pauline réponde.
                     </p>
-                  ) : r.sujet ? (
-                    <p className="cours__sujet">{r.sujet}</p>
-                  ) : null}
-                </div>
-                <div style={{ textAlign: "right", minWidth: 0 }}>
-                  <span
-                    className={
-                      r.validee_le ? "etiquette" : "etiquette etiquette--attente"
-                    }
-                  >
-                    {libelleStatut(r, maintenant)}
-                  </span>
-                  {!r.validee_le ? (
-                    <p className="cours__note">
-                      Créneau gardé le temps que Pauline réponde
-                    </p>
-                  ) : r.lien_visio ? (
-                    <p style={{ marginTop: 8 }}>
-                      <a href={r.lien_visio}>Rejoindre</a>
-                    </p>
-                  ) : (
-                    <p className="cours__note">Lien envoyé avant la séance</p>
                   )}
 
-                  {r.annulation_demandee_le && !r.annulation_traitee_le ? null : (
-                    <div className="cours__actions">
-                      {r.validee_le && (
+                  {prochain.tete.annulation_demandee_le &&
+                    !prochain.tete.annulation_traitee_le && (
+                      <p className="hero__avis">
+                        {prochain.tete.demande_type === "modification"
+                          ? "Changement demandé. Pauline vous répond par email, et ce cours reste prévu jusque-là."
+                          : "Annulation demandée. Pauline vous répond par email, et ce cours reste prévu jusque-là."}
+                      </p>
+                    )}
+                </div>
+
+                <div className="hero__actions">
+                  {prochain.tete.validee_le && prochain.tete.lien_visio ? (
+                    <a href={prochain.tete.lien_visio} className="action action--or action--grand">
+                      Rejoindre le cours
+                    </a>
+                  ) : prochain.tete.validee_le ? (
+                    <p className="hero__detail" style={{ margin: 0 }}>
+                      Le lien vous est envoyé avant la séance.
+                    </p>
+                  ) : null}
+
+                  {!(
+                    prochain.tete.annulation_demandee_le &&
+                    !prochain.tete.annulation_traitee_le
+                  ) && (
+                    <div className="hero__liens">
+                      {prochain.tete.validee_le && (
                         <Link
-                          href={`/reserver?deplacer=${bloc.ids.join(",")}`}
-                          className="action-cours"
+                          href={`/reserver?deplacer=${prochain.ids.join(",")}`}
+                          className="action-cours action-cours--clair"
                         >
                           Modifier
                         </Link>
                       )}
                       <DemandeAnnulation
-                        ids={bloc.ids}
-                        heures={bloc.heures}
-                        enAttente={!r.validee_le}
+                        ids={prochain.ids}
+                        heures={prochain.heures}
+                        sombre
+                        enAttente={!prochain.tete.validee_le}
                         dansLesDelais={
-                          Date.parse(r.debut) - Date.now() >
+                          Date.parse(prochain.tete.debut) - Date.now() >
                           delaiAnnulation * 3600 * 1000
                         }
                       />
                     </div>
                   )}
                 </div>
+              </>
+            ) : (
+              <div style={{ minWidth: 0 }}>
+                <p className="hero__surtitre">Aucun cours prévu</p>
+                <p className="hero__quand">Choisissez un créneau</p>
+                <p className="hero__detail" style={{ marginBottom: 18 }}>
+                  Les disponibilités de Pauline s&apos;affichent en temps réel. Il
+                  n&apos;y a rien d&apos;autre à remplir.
+                </p>
+                <Link href="/reserver" className="action action--or action--grand">
+                  Réserver un cours
+                </Link>
+              </div>
+            )}
+          </div>
 
-                {r.annulation_demandee_le && !r.annulation_traitee_le ? (
-                  <p className="cours__etat">
-                    {r.demande_type === "modification" ? (
-                      <>
-                        <strong>Changement demandé</strong>
-                        {propositions.get(r.id)?.length
-                          ? ` pour le ${blocLong({
-                              debut: propositions.get(r.id)![0].debut,
-                              fin: propositions.get(r.id)![
-                                propositions.get(r.id)!.length - 1
-                              ].fin,
-                              heures: propositions.get(r.id)!.length,
-                            })}`
-                          : ""}
-                        . Pauline vous répond par email, et ce cours reste prévu
-                        jusque-là.
-                      </>
-                    ) : (
-                      <>
-                        <strong>Annulation demandée.</strong> Pauline vous répond par
-                        email, et le cours reste prévu jusque-là.
-                      </>
-                    )}
-                  </p>
-                ) : null}
-              </article>
-              );
-            })
-          )}
-        </Bloc>
+          {/* ---- écrire à Pauline ---- */}
+          <div className="espace__contact">
+            <p className="contact__titre">Une question ?</p>
+            <p className="contact__texte">
+              Un créneau qui n&apos;apparaît pas, un empêchement, une question sur un
+              chapitre : écrivez directement.
+            </p>
+            <div className="contact__boutons">
+              {whatsapp && (
+                <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="contact__bouton contact__bouton--vert">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.9-.9L3 20.5l1.6-4.9A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z" />
+                  </svg>
+                  Écrire sur WhatsApp
+                </a>
+              )}
+              <a href={courriel} className="contact__bouton contact__bouton--or">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="2.5" y="5" width="19" height="14" rx="2" />
+                  <path d="m3 7 9 6 9-6" />
+                </svg>
+                Écrire par email
+              </a>
+            </div>
+            <p className="contact__note">
+              Le message s&apos;ouvre déjà rempli avec le prénom de {eleve || "l'élève"}
+              {classe ? " et sa classe" : ""}.
+            </p>
+          </div>
 
-        <Bloc titre="Historique">
-          {passees.length === 0 ? (
-            <Vide>
-              Rien encore. Vos cours passés viendront se ranger ici, avec les documents
-              échangés.
-            </Vide>
-          ) : (
-            blocsPassees.map((bloc) => {
-              const r = bloc.tete;
-              return (
-              <article key={r.id} className="cours">
-                <div>
-                  <p className="cours__quand">
-                    {bloc.heures > 1 ? blocLong(bloc) : creneauLong(r.debut)}
-                  </p>
-                  {bloc.heures > 1 ? (
-                    <p className="cours__sujet">
-                      {bloc.heures} heures{r.sujet ? ` · ${r.sujet}` : ""}
-                    </p>
-                  ) : r.sujet ? (
-                    <p className="cours__sujet">{r.sujet}</p>
-                  ) : null}
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <span className="etiquette">{libelleStatut(r, maintenant)}</span>
-                  {r.refus_motif ? (
-                    <p className="cours__note">{r.refus_motif}</p>
-                  ) : (
-                    <p className="cours__note">
-                      {r.validee_le
-                        ? euros(bloc.lignes.reduce((t, l) => t + l.prix_cents, 0))
-                        : "Non facturé"}
-                    </p>
-                  )}
-                </div>
-              </article>
-              );
-            })
-          )}
-        </Bloc>
+          {/* ---- les cours ---- */}
+          <div className="espace__principal">
+            {suivants.length > 0 && (
+              <>
+                <h2 style={{ fontSize: 23, marginBottom: 14 }}>Les suivants</h2>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {suivants.map((bloc) => {
+                    const r = bloc.tete;
+                    const enDemande =
+                      !!r.annulation_demandee_le && !r.annulation_traitee_le;
+                    return (
+                      <article key={r.id} className="seance-eleve">
+                        <div className="seance-eleve__tete">
+                          <div style={{ minWidth: 0 }}>
+                            <p className="seance-eleve__quand">
+                              {bloc.heures > 1
+                                ? blocLong(bloc)
+                                : creneauLong(r.debut)}
+                            </p>
+                            <p className="seance-eleve__detail">
+                              {bloc.heures > 1
+                                ? `${bloc.heures} heures d'affilée`
+                                : "Une heure"}
+                              {r.sujet ? ` · ${r.sujet}` : ""}
+                            </p>
+                          </div>
+                          <span
+                            className={
+                              r.validee_le
+                                ? "etiquette"
+                                : "etiquette etiquette--attente"
+                            }
+                          >
+                            {libelleStatut(r, maintenant)}
+                          </span>
+                        </div>
 
-        <Bloc titre="Documents">
-          {(documents ?? []).length === 0 ? (
-            <Vide>
-              Les supports utilisés pendant les cours apparaîtront ici dès que Pauline
-              les aura déposés.
-            </Vide>
-          ) : (
-            (documents ?? []).map((d) => (
-              <article key={d.id} className="cours">
-                <div>
-                  <p className="cours__quand" style={{ fontSize: 17 }}>
-                    {d.nom_fichier}
-                  </p>
-                  <p className="cours__note">
-                    Déposé le {new Date(d.cree_le).toLocaleDateString("fr-FR")}
-                  </p>
+                        {enDemande ? (
+                          <p className="seance-eleve__avis">
+                            {r.demande_type === "modification"
+                              ? "Changement demandé"
+                              : "Annulation demandée"}
+                            {propositions.get(r.id)?.length
+                              ? ` pour le ${blocLong({
+                                  debut: propositions.get(r.id)![0].debut,
+                                  fin: propositions.get(r.id)![
+                                    propositions.get(r.id)!.length - 1
+                                  ].fin,
+                                  heures: propositions.get(r.id)!.length,
+                                })}`
+                              : ""}
+                            . Pauline vous répond par email, et ce cours reste prévu
+                            jusque-là.
+                          </p>
+                        ) : (
+                          <div className="seance-eleve__actions">
+                            {r.validee_le && (
+                              <Link
+                                href={`/reserver?deplacer=${bloc.ids.join(",")}`}
+                                className="action-cours"
+                              >
+                                Modifier
+                              </Link>
+                            )}
+                            <DemandeAnnulation
+                              ids={bloc.ids}
+                              heures={bloc.heures}
+                              enAttente={!r.validee_le}
+                              dansLesDelais={
+                                Date.parse(r.debut) - Date.now() >
+                                delaiAnnulation * 3600 * 1000
+                              }
+                            />
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
                 </div>
-                <a href={`/documents/${d.id}`}>télécharger</a>
-              </article>
-            ))
-          )}
-        </Bloc>
+              </>
+            )}
 
-        <Bloc titre="Factures">
-          {(factures ?? []).length === 0 ? (
-            <Vide>
-              Aucune facture pour l&apos;instant. Elles sont émises en fin de mois et
-              restent consultables ici.
-            </Vide>
-          ) : (
-            (factures ?? []).map((f) => (
-              <article key={f.id} className="cours">
-                <div>
-                  <p className="cours__quand" style={{ fontSize: 17 }}>
-                    Facture {f.numero ?? ""}
-                  </p>
-                  <p className="cours__note">
-                    {moisLong(f.periode_debut)}
-                    {f.echeance_le
-                      ? ` · à régler avant le ${new Date(f.echeance_le).toLocaleDateString("fr-FR")}`
-                      : ""}
-                  </p>
+            {prochain && (
+              <Link
+                href="/reserver"
+                className="action action--foret action--grand"
+                style={{ marginTop: suivants.length > 0 ? 16 : 0 }}
+              >
+                Réserver un autre cours
+              </Link>
+            )}
+
+            {blocsPassees.length > 0 && (
+              <details className="repli-discret" style={{ marginTop: 30 }}>
+                <summary>
+                  Mes cours passés — {blocsPassees.length} depuis le début
+                </summary>
+                <div className="repli-discret__corps" style={{ maxWidth: "none" }}>
+                  <div style={{ display: "grid", gap: 7 }}>
+                    {blocsPassees.map((bloc) => {
+                      const r = bloc.tete;
+                      return (
+                        <div key={r.id} className="seance-passee">
+                          <p className="seance-passee__quand">
+                            {bloc.heures > 1 ? blocLong(bloc) : creneauLong(r.debut)}
+                          </p>
+                          <p className="seance-passee__etat">
+                            {libelleStatut(r, maintenant)}
+                            {r.refus_motif
+                              ? ` — ${r.refus_motif}`
+                              : r.validee_le
+                                ? ` · ${euros(
+                                    bloc.lignes.reduce((t, l) => t + l.prix_cents, 0)
+                                  )}`
+                                : " · non facturé"}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <span className="etiquette">
-                    {f.statut === "payee" ? "Réglée" : "À régler"}
+              </details>
+            )}
+          </div>
+
+          {/* ---- factures et documents ---- */}
+          <aside className="espace__cote">
+            <div className="carte-cote">
+              <div className="carte-cote__tete">
+                <p className="carte-cote__titre">Factures</p>
+                {aRegler > 0 && (
+                  <span className="etiquette etiquette--attente">
+                    {aRegler} à régler
                   </span>
-                  <p className="cours__note">
-                    {euros(f.total_cents)} · <a href={`/factures/${f.id}`}>voir</a>
-                  </p>
+                )}
+              </div>
+              {(factures ?? []).length === 0 ? (
+                <p className="carte-cote__vide">
+                  Aucune facture pour l&apos;instant. Elles sont émises en fin de mois
+                  et restent consultables ici.
+                </p>
+              ) : (
+                <div className="carte-cote__liste">
+                  {(factures ?? []).slice(0, 6).map((f) => (
+                    <a key={f.id} href={`/factures/${f.id}`} className="entree-cote">
+                      <span style={{ minWidth: 0 }}>
+                        <span className="entree-cote__nom">{f.numero ?? "—"}</span>
+                        <span className="entree-cote__note">
+                          {moisLong(f.periode_debut)}
+                          {f.statut === "payee"
+                            ? " · réglée"
+                            : f.echeance_le
+                              ? ` · avant le ${new Date(f.echeance_le).toLocaleDateString("fr-FR")}`
+                              : ""}
+                        </span>
+                      </span>
+                      <span className="entree-cote__montant">
+                        {euros(f.total_cents)}
+                      </span>
+                    </a>
+                  ))}
                 </div>
-              </article>
-            ))
-          )}
-        </Bloc>
+              )}
+            </div>
+
+            <div className="carte-cote">
+              <div className="carte-cote__tete">
+                <p className="carte-cote__titre">Documents</p>
+              </div>
+              {(documents ?? []).length === 0 ? (
+                <p className="carte-cote__vide">
+                  Les supports utilisés pendant les cours apparaîtront ici dès que
+                  Pauline les aura déposés.
+                </p>
+              ) : (
+                <div className="carte-cote__liste">
+                  {(documents ?? []).slice(0, 8).map((d) => (
+                    <a key={d.id} href={`/documents/${d.id}`} className="entree-cote">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: "none", color: "var(--or-texte)" }}>
+                        <path d="M14 2.5H7a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7.5z" />
+                        <path d="M14 2.5v5h5" />
+                      </svg>
+                      <span className="entree-cote__nom" style={{ minWidth: 0 }}>
+                        {d.nom_fichier}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </aside>
+
+        </div>
       </div>
     </section>
-  );
-}
-
-function Bloc({ titre, children }: { titre: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 44 }}>
-      <h2 style={{ fontSize: 24, marginBottom: 16 }}>{titre}</h2>
-      <div className="tableau-enveloppe">{children}</div>
-    </div>
-  );
-}
-
-function Vide({ children }: { children: React.ReactNode }) {
-  return (
-    <p
-      style={{
-        padding: "28px 28px",
-        fontSize: 15,
-        lineHeight: 1.65,
-        color: "var(--texte-doux)",
-      }}
-    >
-      {children}
-    </p>
   );
 }

@@ -11,6 +11,7 @@ export default function DemandeAnnulation({
   heures,
   dansLesDelais,
   enAttente = false,
+  sombre = false,
 }: {
   /** Les heures du cours, dans l'ordre. */
   ids: string[];
@@ -18,6 +19,9 @@ export default function DemandeAnnulation({
   dansLesDelais: boolean;
   /** La demande n'a pas encore été acceptée : elle se retire librement. */
   enAttente?: boolean;
+  /** Posé sur le fond vert du prochain cours, où l'encre claire est
+   *  illisible et le volet a besoin de son propre fond. */
+  sombre?: boolean;
 }) {
   const [etat, action, enCours] = useActionState(demanderAnnulation, initial);
   // Un <details> aurait suffi, mais son volet et son bouton ne font
@@ -27,7 +31,7 @@ export default function DemandeAnnulation({
 
   if (etat.ok) {
     return (
-      <p className="annulation__etat">
+      <p className={sombre ? "annulation__etat annulation__etat--clair" : "annulation__etat"}>
         {etat.retiree
           ? "Demande retirée. Le créneau est de nouveau libre."
           : "Demande envoyée. Pauline vous répond par email, et le cours reste prévu jusque-là."}
@@ -41,7 +45,7 @@ export default function DemandeAnnulation({
     <>
       <button
         type="button"
-        className="action-cours"
+        className={sombre ? "action-cours action-cours--clair" : "action-cours"}
         aria-expanded={ouvert}
         onClick={() => setOuvert((o) => !o)}
       >
@@ -49,7 +53,12 @@ export default function DemandeAnnulation({
       </button>
 
       {ouvert && (
-      <form action={action} className="annulation__corps">
+      <form
+        action={action}
+        className={
+          sombre ? "annulation__corps annulation__corps--sombre" : "annulation__corps"
+        }
+      >
         <input type="hidden" name="ids" value={ids.join(",")} />
 
         <p className="annulation__avis">

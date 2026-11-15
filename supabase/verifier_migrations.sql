@@ -141,4 +141,11 @@ from information_schema.columns
  where table_name = 'dossiers' and column_name = 'email'
    and is_nullable = 'NO'
 
+union all select
+  'Numéro de contact (0023)',
+  to_char(count(*), '9') || ' / 1 élément',
+  case when count(*) = 1 then 'OK' else 'MANQUANTE' end
+from information_schema.columns
+ where table_name = 'parametres' and column_name = 'telephone_contact'
+
 order by 1;

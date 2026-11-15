@@ -353,6 +353,22 @@ export default async function Reglages({
                 />
               </div>
               <div>
+                <label htmlFor="telephone_contact" style={etiquette}>
+                  Numéro WhatsApp
+                </label>
+                <input
+                  id="telephone_contact"
+                  name="telephone_contact"
+                  type="tel"
+                  defaultValue={p.telephone_contact ?? ""}
+                  style={saisie}
+                />
+                <p style={{ marginTop: 7, fontSize: 13, color: "var(--texte-gris)" }}>
+                  Proposé aux élèves depuis leur espace, pour vous écrire
+                  directement. Laissez vide pour n&apos;offrir que l&apos;email.
+                </p>
+              </div>
+              <div>
                 <label htmlFor="adresse_postale" style={etiquette}>
                   Adresse portée sur les factures
                 </label>

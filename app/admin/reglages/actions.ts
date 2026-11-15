@@ -55,6 +55,8 @@ export async function enregistrerReglages(formulaire: FormData): Promise<void> {
       suspendu_le: suspension === "aucune" ? null : new Date().toISOString(),
       iban: String(formulaire.get("iban") ?? "").trim() || null,
       wero_telephone: String(formulaire.get("wero_telephone") ?? "").trim() || null,
+      telephone_contact:
+        String(formulaire.get("telephone_contact") ?? "").trim() || null,
       adresse_postale: String(formulaire.get("adresse_postale") ?? "").trim() || null,
       email_contact:
         String(formulaire.get("email_contact") ?? "").trim() ||

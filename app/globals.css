@@ -1995,3 +1995,283 @@ table.liste .droite { text-align: right; }
   line-height: 1.5;
   color: var(--or-texte);
 }
+
+/* =====================================================================
+   L'espace élève
+
+   Une chose domine — le prochain cours — et le reste se consulte.
+   Avant, quatre listes de même poids s'empilaient, et sur téléphone
+   chaque ligne s'écrasait en deux colonnes.
+
+   La grille place quatre blocs. Sur ordinateur : le cours en bandeau,
+   les séances à gauche, le contact puis les factures à droite. Sur
+   téléphone, tout s'empile dans l'ordre où l'on s'en sert — le cours,
+   puis écrire à Pauline, puis le reste.
+   ===================================================================== */
+
+.espace__tete {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 26px;
+}
+
+.espace {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+.espace__hero      { grid-column: 1 / -1; grid-row: 1; }
+.espace__contact   { grid-column: 2; grid-row: 2; }
+.espace__cote      { grid-column: 2; grid-row: 3; align-self: start; }
+.espace__principal { grid-column: 1; grid-row: 2 / 4; min-width: 0; }
+
+@media (max-width: 900px) {
+  .espace { grid-template-columns: minmax(0, 1fr); }
+  .espace__hero      { grid-column: 1; grid-row: 1; }
+  .espace__contact   { grid-column: 1; grid-row: 2; }
+  .espace__principal { grid-column: 1; grid-row: 3; }
+  .espace__cote      { grid-column: 1; grid-row: 4; }
+}
+
+/* ---- le prochain cours ---- */
+.espace__hero {
+  padding: 30px 32px;
+  background: var(--foret);
+  border-radius: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 26px;
+  align-items: center;
+  justify-content: space-between;
+}
+.hero__surtitre {
+  margin: 0;
+  font-size: 11.5px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--or-clair);
+  font-weight: 600;
+}
+.hero__quand {
+  margin: 11px 0 0;
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 30px;
+  line-height: 1.2;
+  color: var(--creme);
+  text-wrap: balance;
+}
+.hero__detail { margin: 8px 0 0; font-size: 14.5px; color: #c3d2bf; }
+.hero__avis {
+  margin: 14px 0 0;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: rgba(232, 200, 122, 0.14);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--or-clair);
+  max-width: 54ch;
+}
+.hero__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+.hero__liens { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* Le volet d'annulation a besoin de son propre fond : l'encre sombre
+   d'un formulaire est illisible sur le vert. */
+.annulation__corps--sombre {
+  background: var(--carte);
+  border: 1px solid var(--bordure);
+  border-radius: 7px;
+  padding: 16px 18px;
+  margin-top: 12px;
+  flex: 1 1 100%;
+}
+.annulation__etat--clair { color: var(--or-clair); }
+/* Sur le vert, le fond crème de .action-cours rendait l'or pâle
+   illisible — de l'or sur du crème. Le bouton devient un contour. */
+.action-cours--clair {
+  background: transparent;
+  color: var(--creme);
+  border-color: rgba(245, 241, 232, 0.42);
+}
+.action-cours--clair:hover {
+  background: rgba(245, 241, 232, 0.12);
+  color: var(--or-clair);
+  border-color: var(--or-clair);
+}
+
+@media (max-width: 620px) {
+  .espace__hero { padding: 24px 20px; }
+  .hero__quand { font-size: 25px; }
+  .hero__actions { width: 100%; }
+  .hero__actions > .action { width: 100%; text-align: center; }
+  .hero__liens { width: 100%; }
+  .hero__liens > * { flex: 1 1 0; text-align: center; }
+}
+
+/* ---- écrire à Pauline ---- */
+.espace__contact {
+  padding: 22px 24px;
+  background: var(--or-pale, #fdf6e4);
+  border: 1px solid var(--or-clair);
+  border-radius: 9px;
+}
+.contact__titre {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 20px;
+  color: var(--foret);
+}
+.contact__texte {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--texte-gris);
+}
+.contact__boutons { display: grid; gap: 9px; margin-top: 16px; }
+.contact__bouton {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-size: 14.5px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  transition: filter .15s, border-color .15s;
+}
+.contact__bouton--vert { background: var(--foret); color: var(--creme); }
+.contact__bouton--vert:hover { filter: brightness(1.18); color: var(--creme); }
+.contact__bouton--or {
+  background: var(--carte);
+  border-color: var(--or);
+  color: var(--or-texte);
+}
+.contact__bouton--or:hover { border-color: var(--foret); color: var(--foret); }
+.contact__note {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--texte-gris);
+}
+
+/* ---- une séance à venir ---- */
+.seance-eleve {
+  padding: 15px 20px;
+  background: var(--carte);
+  border: 1px solid var(--bordure);
+  border-radius: 7px;
+}
+.seance-eleve__tete {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.seance-eleve__quand { margin: 0; font-size: 15.5px; color: var(--foret); }
+.seance-eleve__detail {
+  margin: 3px 0 0;
+  font-size: 13.5px;
+  color: var(--texte-gris);
+}
+.seance-eleve__avis {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--or-texte);
+}
+.seance-eleve__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin-top: 11px;
+  padding-top: 11px;
+  border-top: 1px solid var(--bordure-douce);
+}
+
+/* ---- un cours passé, dans le repli ---- */
+.seance-passee {
+  padding: 11px 14px;
+  background: var(--carte);
+  border: 1px solid var(--bordure-douce);
+  border-radius: 6px;
+}
+.seance-passee__quand { margin: 0; font-size: 14px; color: var(--texte); }
+.seance-passee__etat {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--texte-gris);
+}
+
+/* ---- factures et documents ---- */
+.espace__cote { display: grid; gap: 18px; }
+.carte-cote {
+  padding: 20px 22px;
+  background: var(--carte);
+  border: 1px solid var(--bordure);
+  border-radius: 9px;
+}
+.carte-cote__tete {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.carte-cote__titre {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 19px;
+  color: var(--foret);
+}
+.carte-cote__vide {
+  margin: 12px 0 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--texte-gris);
+}
+.carte-cote__liste { margin-top: 14px; display: grid; gap: 8px; }
+.entree-cote {
+  text-decoration: none;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 11px 14px;
+  border: 1px solid var(--bordure-douce);
+  border-radius: 6px;
+  background: #fff;
+  transition: border-color .15s;
+}
+.entree-cote:hover { border-color: var(--or); }
+.entree-cote__nom {
+  display: block;
+  font-size: 14px;
+  color: var(--texte);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.entree-cote__note {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--texte-gris);
+}
+.entree-cote__montant {
+  flex: none;
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--foret);
+  font-variant-numeric: tabular-nums;
+}
