@@ -49,6 +49,11 @@ export async function GET(requete: NextRequest) {
       "accept", "accept-encoding", "accept-language", "cache-control",
       "connection", "content-length", "content-type", "host", "pragma",
       "user-agent", "via", "cookie", "referer", "origin", "te", "dnt",
+      // Ceux-là, c'est Vercel qui les ajoute en route. Les afficher
+      // ferait croire que le planificateur envoie des en-têtes alors
+      // qu'il n'en envoie aucun.
+      "date", "forwarded", "x-invocation-id", "x-matched-path",
+      "x-real-ip", "x-middleware-invoke", "x-nextjs-data",
     ]);
     const personnalises = [...requete.headers.keys()]
       .filter((n) => !ordinaires.has(n) && !n.startsWith("x-vercel") &&
