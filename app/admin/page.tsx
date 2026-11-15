@@ -15,6 +15,8 @@ export const dynamic = "force-dynamic";
 type Prochain = {
   id: string;
   debut: string;
+  fin: string;
+  dossier_id: string;
   sujet: string | null;
   dossiers: {
     prenom: string | null;
@@ -115,18 +117,23 @@ export default async function TableauDeBord({
       .order("debut"),
     supabase
       .from("reservations")
-      .select("id, debut, sujet, dossiers (prenom, nom, eleve_prenom, eleve_classe)")
+      .select(
+        "id, dossier_id, debut, fin, sujet, dossiers (prenom, nom, eleve_prenom, eleve_classe)"
+      )
       .eq("statut", "reservee")
       .not("validee_le", "is", null)
       .gte("debut", maintenant)
       .order("debut")
-      .limit(12),
+      // De quoi former douze blocs même si plusieurs durent deux heures.
+      .limit(30),
     // Les séances dont l'heure est passée mais que Pauline n'a pas
     // encore clôturées : tant qu'elles restent là, elles ne sont pas
     // facturables.
     supabase
       .from("reservations")
-      .select("id, dossier_id, debut, sujet, dossiers (prenom, nom, eleve_prenom, eleve_classe)")
+      .select(
+        "id, dossier_id, debut, fin, sujet, dossiers (prenom, nom, eleve_prenom, eleve_classe)"
+      )
       .eq("statut", "reservee")
       .not("validee_le", "is", null)
       .lt("debut", maintenant)
@@ -198,10 +205,22 @@ export default async function TableauDeBord({
       ),
     }));
 
-  const liste = (prochains.data ?? []) as unknown as Prochain[];
-  const enAttente = (aValider.data ?? []) as unknown as (Prochain & {
-    dossier_id: string;
-  })[];
+  // Deux heures qui se suivent sont deux lignes en base et un seul
+  // cours dans la vraie vie. Partout où on les montre, on les montre
+  // comme un cours — et le même élève, sinon deux séances qui se
+  // touchent se retrouveraient fondues en une.
+  const memeCours = (a: Prochain, b: Prochain) =>
+    a.dossier_id === b.dossier_id && a.sujet === b.sujet;
+
+  const liste = regrouperReservations(
+    (prochains.data ?? []) as unknown as Prochain[],
+    memeCours
+  ).slice(0, 12);
+
+  const enAttente = regrouperReservations(
+    (aValider.data ?? []) as unknown as Prochain[],
+    memeCours
+  ).reverse();
   type Trancher = Prochain & {
     dossier_id: string;
     fin: string;
@@ -742,10 +761,14 @@ export default async function TableauDeBord({
           ) : (
             <table className="liste">
               <tbody>
-                {enAttente.map((r) => (
+                {enAttente.map((bloc) => {
+                  const r = bloc.tete;
+                  return (
                   <tr key={r.id}>
                     <td>
-                      <strong>{creneauLong(r.debut)}</strong>
+                      <strong>
+                        {bloc.heures > 1 ? blocLong(bloc) : creneauLong(r.debut)}
+                      </strong>
                       {r.sujet ? (
                         <>
                           <br />
@@ -769,7 +792,7 @@ export default async function TableauDeBord({
                     <td className="droite">
                       <div className="actions-ligne">
                         <form action={marquerEffectue}>
-                          <input type="hidden" name="id" value={r.id} />
+                          <input type="hidden" name="id" value={bloc.ids.join(",")} />
                           <input type="hidden" name="dossier" value={r.dossier_id} />
                           <input type="hidden" name="retour" value="/admin" />
                           <button
@@ -780,7 +803,7 @@ export default async function TableauDeBord({
                           </button>
                         </form>
                         <form action={annulerCours}>
-                          <input type="hidden" name="id" value={r.id} />
+                          <input type="hidden" name="id" value={bloc.ids.join(",")} />
                           <input type="hidden" name="dossier" value={r.dossier_id} />
                           <input type="hidden" name="retour" value="/admin" />
                           <button type="submit" className="lien-bouton">
@@ -790,7 +813,8 @@ export default async function TableauDeBord({
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -813,28 +837,41 @@ export default async function TableauDeBord({
                 </tr>
               </thead>
               <tbody>
-                {liste.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <strong>{creneauLong(r.debut)}</strong>
-                    </td>
-                    <td>
-                      {r.dossiers?.eleve_prenom ?? "—"}
-                      {r.dossiers?.eleve_classe ? (
-                        <>
-                          <br />
-                          <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
-                            {r.dossiers.eleve_classe}
-                          </span>
-                        </>
-                      ) : null}
-                    </td>
-                    <td>
-                      {r.dossiers?.prenom ?? ""} {r.dossiers?.nom ?? ""}
-                    </td>
-                    <td>{r.sujet ?? "—"}</td>
-                  </tr>
-                ))}
+                {liste.map((bloc) => {
+                  const r = bloc.tete;
+                  return (
+                    <tr key={r.id}>
+                      <td>
+                        <strong>
+                          {bloc.heures > 1 ? blocLong(bloc) : creneauLong(r.debut)}
+                        </strong>
+                        {bloc.heures > 1 ? (
+                          <>
+                            <br />
+                            <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
+                              {bloc.heures} heures d&apos;affilée
+                            </span>
+                          </>
+                        ) : null}
+                      </td>
+                      <td>
+                        {r.dossiers?.eleve_prenom ?? "—"}
+                        {r.dossiers?.eleve_classe ? (
+                          <>
+                            <br />
+                            <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
+                              {r.dossiers.eleve_classe}
+                            </span>
+                          </>
+                        ) : null}
+                      </td>
+                      <td>
+                        {r.dossiers?.prenom ?? ""} {r.dossiers?.nom ?? ""}
+                      </td>
+                      <td>{r.sujet ?? "—"}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

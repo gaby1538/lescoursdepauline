@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { clientAdmin } from "@/lib/supabase";
-import { creneauLong, dureeCourte } from "@/lib/dates";
+import { blocLong, creneauLong, dureeCourte, regrouperReservations } from "@/lib/dates";
 import { euros } from "@/lib/constantes";
 import { etiquette, saisie } from "@/components/Champs";
 import Historique, { type Evenement } from "@/components/Historique";
@@ -30,6 +30,7 @@ const JOURS = [
 type Cours = {
   id: string;
   debut: string;
+  fin: string;
   statut: string;
   validee_le: string | null;
   refus_motif: string | null;
@@ -76,7 +77,7 @@ export default async function FicheEleve({
     supabase
       .from("reservations")
       .select(
-        "id, debut, statut, validee_le, refus_motif, sujet, prix_cents, facture_id, annulation_demandee_le, annulation_decision, annulation_reponse, annulation_motif"
+        "id, debut, fin, statut, validee_le, refus_motif, sujet, prix_cents, facture_id, annulation_demandee_le, annulation_decision, annulation_reponse, annulation_motif"
       )
       .eq("dossier_id", id)
       .order("debut", { ascending: false }),
@@ -145,9 +146,23 @@ export default async function FicheEleve({
       ["annulee_hors_delai", "absent"].includes(c.statut) && !c.facture_id
   );
 
-  const donnes = sesCours.filter((c) => c.statut === "effectuee").length;
-  const aVenirEleve = sesCours.filter(
-    (c) => c.statut === "reservee" && c.validee_le && c.debut >= maintenant
+  // Deux heures qui se suivent sont un seul cours. Même élève ici par
+  // construction : il reste à ne pas fondre deux séances de nature
+  // différente, ni l'une facturée avec l'autre qui ne l'est pas.
+  const blocs = regrouperReservations(
+    sesCours,
+    (a, b) =>
+      a.statut === b.statut &&
+      !a.validee_le === !b.validee_le &&
+      !a.facture_id === !b.facture_id &&
+      a.sujet === b.sujet &&
+      !a.annulation_demandee_le === !b.annulation_demandee_le
+  ).reverse();
+
+  const donnes = blocs.filter((b) => b.tete.statut === "effectuee").length;
+  const aVenirEleve = blocs.filter(
+    (b) =>
+      b.tete.statut === "reservee" && b.tete.validee_le && b.tete.debut >= maintenant
   ).length;
 
   return (
@@ -321,17 +336,30 @@ export default async function FicheEleve({
 
         <h2 style={{ fontSize: 25, margin: "44px 0 16px" }}>Ses cours</h2>
         <div className="tableau-enveloppe">
-          {sesCours.length === 0 ? (
+          {blocs.length === 0 ? (
             <p style={{ padding: 24, fontSize: 15, color: "var(--texte-doux)" }}>
               Aucun cours.
             </p>
           ) : (
             <table className="liste">
               <tbody>
-                {sesCours.map((c) => (
+                {blocs.map((bloc) => {
+                  const c = bloc.tete;
+                  const total = bloc.lignes.reduce((t, l) => t + l.prix_cents, 0);
+                  return (
                   <tr key={c.id}>
                     <td>
-                      <strong>{creneauLong(c.debut)}</strong>
+                      <strong>
+                        {bloc.heures > 1 ? blocLong(bloc) : creneauLong(c.debut)}
+                      </strong>
+                      {bloc.heures > 1 ? (
+                        <>
+                          <br />
+                          <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
+                            {bloc.heures} heures d&apos;affilée
+                          </span>
+                        </>
+                      ) : null}
                       {c.sujet ? (
                         <>
                           <br />
@@ -370,7 +398,7 @@ export default async function FicheEleve({
                       </span>
                       <br />
                       <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
-                        {euros(c.prix_cents)}
+                        {euros(total)}
                         {c.facture_id ? " · facturé" : ""}
                       </span>
                     </td>
@@ -384,7 +412,7 @@ export default async function FicheEleve({
                         <div style={{ display: "grid", gap: 6, justifyItems: "end" }}>
                           {c.debut < maintenant && (
                             <form action={marquerEffectue}>
-                              <input type="hidden" name="id" value={c.id} />
+                              <input type="hidden" name="id" value={bloc.ids.join(",")} />
                               <input type="hidden" name="dossier" value={id} />
                               <input type="hidden" name="retour" value={`/admin/eleves/${id}`} />
                               <button type="submit" className="lien-bouton">
@@ -393,7 +421,7 @@ export default async function FicheEleve({
                             </form>
                           )}
                           <form action={annulerCours}>
-                            <input type="hidden" name="id" value={c.id} />
+                            <input type="hidden" name="id" value={bloc.ids.join(",")} />
                             <input type="hidden" name="dossier" value={id} />
                             <button type="submit" className="lien-bouton">
                               annuler
@@ -403,7 +431,8 @@ export default async function FicheEleve({
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}

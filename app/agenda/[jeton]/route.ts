@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { regrouperReservations } from "@/lib/dates";
 import { clientAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +48,7 @@ function horodatage(instant: string | Date): string {
 
 type Seance = {
   id: string;
+  dossier_id: string;
   debut: string;
   fin: string;
   statut: string;
@@ -93,14 +95,25 @@ export async function GET(
   const { data } = await supabase
     .from("reservations")
     .select(
-      "id, debut, fin, statut, validee_le, sujet, lien_visio, annulation_demandee_le, annulation_traitee_le, dossiers (prenom, nom, email, eleve_prenom, eleve_classe)"
+      "id, dossier_id, debut, fin, statut, validee_le, sujet, lien_visio, annulation_demandee_le, annulation_traitee_le, dossiers (prenom, nom, email, eleve_prenom, eleve_classe)"
     )
     .in("statut", ["reservee", "effectuee"])
     .gte("debut", depuis)
     .lte("debut", jusqua)
     .order("debut");
 
-  const seances = (data ?? []) as unknown as Seance[];
+  // Deux heures qui se suivent sont un seul cours : dans un agenda
+  // surtout, où deux cases collées pour le même élève se lisent mal et
+  // donnent l'impression de deux rendez-vous à tenir.
+  const blocs = regrouperReservations(
+    (data ?? []) as unknown as Seance[],
+    (a, b) =>
+      a.dossier_id === b.dossier_id &&
+      a.statut === b.statut &&
+      !a.validee_le === !b.validee_le &&
+      a.sujet === b.sujet &&
+      !a.annulation_demandee_le === !b.annulation_demandee_le
+  );
   const maintenant = horodatage(new Date());
 
   const lignes: string[] = [
@@ -113,7 +126,8 @@ export async function GET(
     "X-WR-TIMEZONE:Europe/Paris",
   ];
 
-  for (const s of seances) {
+  for (const bloc of blocs) {
+    const s = bloc.tete;
     const eleve = s.dossiers?.eleve_prenom ?? "Élève";
     const classe = s.dossiers?.eleve_classe ? ` (${s.dossiers.eleve_classe})` : "";
     const enAttente = s.annulation_demandee_le && !s.annulation_traitee_le;
@@ -125,6 +139,7 @@ export async function GET(
       `Réservé par ${s.dossiers?.prenom ?? ""} ${s.dossiers?.nom ?? ""}`.trim(),
       s.dossiers?.email ?? "",
       s.sujet ? `Sujet : ${s.sujet}` : "",
+      bloc.heures > 1 ? `${bloc.heures} heures d'affilée` : "",
       aValider ? "⚠ Demande en attente de votre validation." : "",
       enAttente ? "⚠ Annulation demandée, en attente de votre réponse." : "",
     ]
@@ -136,7 +151,7 @@ export async function GET(
       plier(`UID:${s.id}@lescoursdepauline.com`),
       `DTSTAMP:${maintenant}`,
       `DTSTART:${horodatage(s.debut)}`,
-      `DTEND:${horodatage(s.fin)}`,
+      `DTEND:${horodatage(bloc.fin)}`,
       plier(
         `SUMMARY:${echapper(
           `${aValider ? "? " : enAttente ? "⚠ " : ""}SVT — ${eleve}${classe}${

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exigerAdmin } from "@/lib/admin";
 import { clientAdmin } from "@/lib/supabase";
-import { creneauLong, moisLong } from "@/lib/dates";
+import { blocLong, creneauLong, moisLong, regrouperReservations } from "@/lib/dates";
 import { factureEmise, facturePourTransfert } from "@/lib/emails";
 import { pdfDeFacture } from "@/lib/facturePdf";
 
@@ -55,7 +55,7 @@ export async function genererFactures(formulaire: FormData): Promise<void> {
 
   let requete = supabase
     .from("reservations")
-    .select("id, dossier_id, debut, prix_cents")
+    .select("id, dossier_id, debut, fin, statut, prix_cents")
     .is("facture_id", null)
     .in("statut", FACTURABLE)
     .gte("debut", `${debut}T00:00:00Z`)
@@ -108,13 +108,26 @@ export async function genererFactures(formulaire: FormData): Promise<void> {
       continue;
     }
 
-    const lignes = liste.map((c, index) => ({
+    // Deux heures qui se suivent font une ligne de deux heures, pas
+    // deux lignes d'une heure : c'est un seul cours, et la facture doit
+    // dire la même chose que l'agenda et que la fiche de l'élève.
+    const blocs = regrouperReservations(
+      liste,
+      (a, b) => a.statut === b.statut && a.prix_cents === b.prix_cents
+    );
+
+    const lignes = blocs.map((bloc, index) => ({
       facture_id: facture.id,
-      reservation_id: c.id,
-      description: `Cours de SVT — ${creneauLong(c.debut)}`,
-      quantite: 1,
-      prix_unitaire_cents: c.prix_cents,
-      total_cents: c.prix_cents,
+      // La ligne pointe sur la première heure du bloc : le lien sert à
+      // retrouver d'où elle vient, et toutes portent la même facture.
+      reservation_id: bloc.tete.id,
+      description:
+        bloc.heures > 1
+          ? `Cours de SVT — ${blocLong(bloc)}`
+          : `Cours de SVT — ${creneauLong(bloc.tete.debut)}`,
+      quantite: bloc.heures,
+      prix_unitaire_cents: bloc.tete.prix_cents,
+      total_cents: bloc.lignes.reduce((t, l) => t + l.prix_cents, 0),
       ordre: index,
     }));
 

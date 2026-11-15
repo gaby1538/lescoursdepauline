@@ -57,41 +57,60 @@ export async function basculerSuspension(formulaire: FormData): Promise<void> {
 export async function annulerCours(formulaire: FormData): Promise<void> {
   await exigerAdmin();
 
-  const id = String(formulaire.get("id") ?? "");
+  const ids = identifiants(formulaire);
   const dossier = String(formulaire.get("dossier") ?? "");
 
-  if (id) {
+  if (ids.length > 0) {
     await clientAdmin()
       .from("reservations")
       .update({ statut: "annulee_par_pauline" })
-      .eq("id", id);
+      .in("id", ids);
 
-    await clientAdmin().from("journal").insert({
-      acteur: "pauline",
-      dossier_id: dossier || null,
-      objet: "reservation",
-      objet_id: id,
-      action: "annulee_par_pauline",
-    });
+    await clientAdmin()
+      .from("journal")
+      .insert(
+        ids.map((unId) => ({
+          acteur: "pauline",
+          dossier_id: dossier || null,
+          objet: "reservation",
+          objet_id: unId,
+          action: "annulee_par_pauline",
+        }))
+      );
   }
 
   retour(destination(formulaire, `/admin/eleves/${dossier}`), "?ok=1");
 }
 
+/**
+ * Les identifiants d'un cours.
+ *
+ * Deux heures qui se suivent sont deux lignes en base et un seul cours
+ * pour tout le monde. Les écrans les présentent donc en bloc, et un
+ * bouton tranche le bloc entier : le champ porte une liste, et une
+ * seule valeur reste une liste d'un élément.
+ */
+function identifiants(formulaire: FormData): string[] {
+  return String(formulaire.get("id") ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
 export async function marquerEffectue(formulaire: FormData): Promise<void> {
   await exigerAdmin();
 
-  const id = String(formulaire.get("id") ?? "");
+  const ids = identifiants(formulaire);
   const dossier = String(formulaire.get("dossier") ?? "");
 
-  if (id) {
+  if (ids.length > 0) {
     // L'erreur était ignorée : la base pouvait refuser — un cours non
     // validé n'est pas facturable — et l'écran annonçait quand même
     // « c'est fait », en laissant la ligne en place sans explication.
     const { error } = await clientAdmin()
       .from("reservations")
       .update({ statut: "effectuee" })
-      .eq("id", id);
+      .in("id", ids);
 
     if (error) {
       console.error("marquer effectué", error);
@@ -103,13 +122,17 @@ export async function marquerEffectue(formulaire: FormData): Promise<void> {
       );
     }
 
-    await clientAdmin().from("journal").insert({
-      acteur: "pauline",
-      dossier_id: dossier || null,
-      objet: "reservation",
-      objet_id: id,
-      action: "effectuee",
-    });
+    await clientAdmin()
+      .from("journal")
+      .insert(
+        ids.map((unId) => ({
+          acteur: "pauline",
+          dossier_id: dossier || null,
+          objet: "reservation",
+          objet_id: unId,
+          action: "effectuee",
+        }))
+      );
   }
 
   retour(destination(formulaire, `/admin/eleves/${dossier}`), "?ok=1");
