@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { clientAdmin } from "@/lib/supabase";
 import { euros } from "@/lib/constantes";
-import { parisVersInstant } from "@/lib/dates";
+import { dureeCourte, parisVersInstant } from "@/lib/dates";
 import { etiquette, saisie } from "@/components/Champs";
 import { creerSerie } from "../../actions";
 
@@ -199,7 +199,10 @@ export default async function SerieDeCours({
   });
 
   const retenues = seances.filter((s) => !s.motif);
-  const cents = Math.round(Number((prix || "0").replace(",", ".")) * 100) || 0;
+
+  // Le tarif saisi est horaire ; une séance de deux heures en vaut deux.
+  const horaire = Math.round(Number((prix || "0").replace(",", ".")) * 100) || 0;
+  const cents = Math.round((horaire * minutes) / 60);
 
   const nomEleve =
     eleve.eleve_prenom || `${eleve.prenom ?? ""} ${eleve.nom ?? ""}`.trim() || "—";
@@ -342,7 +345,7 @@ export default async function SerieDeCours({
               <div className="duo" style={{ marginTop: 16 }}>
                 <div>
                   <label htmlFor="prix" style={etiquette}>
-                    Tarif de la séance
+                    Tarif horaire
                   </label>
                   <input
                     id="prix"
@@ -362,7 +365,9 @@ export default async function SerieDeCours({
               </div>
 
               <p style={{ marginTop: 12, fontSize: 13, color: "var(--texte-gris)" }}>
-                Le tarif de sa fiche. Une séance se corrige ensuite au cas par cas.
+                Le tarif de sa fiche, par heure. Une séance de{" "}
+                {dureeCourte(minutes / 60)} en vaut donc {euros(cents)}, et se
+                corrige ensuite au cas par cas.
               </p>
             </form>
 

@@ -125,7 +125,9 @@ export async function genererFactures(formulaire: FormData): Promise<void> {
         bloc.heures > 1
           ? `Cours de SVT — ${blocLong(bloc)}`
           : `Cours de SVT — ${creneauLong(bloc.tete.debut)}`,
-      quantite: bloc.heures,
+      // Une ligne facturée par réservation : le prix unitaire est celui
+      // d'une ligne, et le produit doit retomber sur le total.
+      quantite: bloc.lignes.length,
       prix_unitaire_cents: bloc.tete.prix_cents,
       total_cents: bloc.lignes.reduce((t, l) => t + l.prix_cents, 0),
       ordre: index,

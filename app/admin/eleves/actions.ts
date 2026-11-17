@@ -637,6 +637,39 @@ function creneau(jour: string, heure: string, dureeMin: number): Creneau | null 
   return { debut, fin };
 }
 
+/**
+ * Le même cours, découpé comme le site le fait partout : une ligne par
+ * heure.
+ *
+ * Deux heures posées d'un seul bloc feraient une ligne, et une ligne
+ * vaut une heure dans tout le reste du code — la séance s'afficherait
+ * « une heure » et se facturerait « 1 × 80 € » au lieu de « 2 × 40 € ».
+ * Une durée qui ne tombe pas sur l'heure (1 h 30) reste d'un bloc :
+ * on ne sait pas la couper, et une ligne de 1 h 30 reste juste.
+ */
+function creneaux(jour: string, heure: string, dureeMin: number): Creneau[] {
+  const entier = creneau(jour, heure, dureeMin);
+  if (!entier) return [];
+  if (dureeMin % 60 !== 0 || dureeMin < 60) return [entier];
+
+  const tranches: Creneau[] = [];
+  for (let i = 0; i < dureeMin / 60; i += 1) {
+    const debut = new Date(Date.parse(entier.debut) + i * 3600000).toISOString();
+    tranches.push({
+      debut,
+      fin: new Date(Date.parse(debut) + 3600000).toISOString(),
+    });
+  }
+  return tranches;
+}
+
+/** Le prix d'une ligne : l'heure, ou la séance quand elle est d'un bloc. */
+function prixDeLaLigne(prixHoraire: number | null, dureeMin: number): number | null {
+  if (prixHoraire === null) return null;
+  if (dureeMin % 60 === 0 && dureeMin >= 60) return prixHoraire;
+  return Math.round((prixHoraire * dureeMin) / 60);
+}
+
 function duree(formulaire: FormData): number {
   const n = Number(String(formulaire.get("duree") ?? "60"));
   return Number.isFinite(n) && n >= 15 && n <= 480 ? Math.round(n) : 60;
@@ -649,23 +682,32 @@ export async function ajouterCours(formulaire: FormData): Promise<void> {
   if (!dossier) retour("/admin/eleves");
 
   const vers = `/admin/eleves/${dossier}/cours`;
-  const quand = creneau(
+  const minutes = duree(formulaire);
+  const quand = creneaux(
     String(formulaire.get("jour") ?? ""),
     String(formulaire.get("heure") ?? ""),
-    duree(formulaire)
+    minutes
   );
 
-  if (!quand) retour(vers, "?erreur=date");
+  if (quand.length === 0) retour(vers, "?erreur=date");
 
-  const { error } = await clientAdmin().from("reservations").insert({
-    dossier_id: dossier,
-    debut: quand.debut,
-    fin: quand.fin,
-    prix_cents: centimes(String(formulaire.get("prix") ?? "")),
-    cree_par_pauline: true,
-    validee_le: new Date().toISOString(),
-    sujet: String(formulaire.get("sujet") ?? "").trim() || null,
-  });
+  const sujet = String(formulaire.get("sujet") ?? "").trim() || null;
+  const prixLigne = prixDeLaLigne(
+    centimes(String(formulaire.get("prix") ?? "")),
+    minutes
+  );
+
+  const { error } = await clientAdmin().from("reservations").insert(
+    quand.map((c) => ({
+      dossier_id: dossier,
+      debut: c.debut,
+      fin: c.fin,
+      prix_cents: prixLigne,
+      cree_par_pauline: true,
+      validee_le: new Date().toISOString(),
+      sujet,
+    }))
+  );
 
   if (error) {
     const pris = (error.message ?? "").includes("CRENEAU_PRIS");
@@ -707,6 +749,7 @@ export async function creerSerie(formulaire: FormData): Promise<void> {
       jour_semaine: Number(String(formulaire.get("jour_semaine") ?? "2")),
       heure: heure.slice(0, 5),
       duree_min: minutes,
+      // Le tarif de la série est horaire : c'est celui de la fiche.
       prix_cents: prix ?? 0,
     })
     .select("id")
@@ -723,22 +766,26 @@ export async function creerSerie(formulaire: FormData): Promise<void> {
   let posees = 0;
   let refusees = 0;
 
+  const prixLigne = prixDeLaLigne(prix, minutes);
+
   for (const jour of jours) {
-    const quand = creneau(jour, heure, minutes);
-    if (!quand) {
+    const quand = creneaux(jour, heure, minutes);
+    if (quand.length === 0) {
       refusees += 1;
       continue;
     }
 
-    const { error } = await supabase.from("reservations").insert({
-      dossier_id: dossier,
-      debut: quand.debut,
-      fin: quand.fin,
-      prix_cents: prix,
-      cree_par_pauline: true,
-      validee_le: new Date().toISOString(),
-      serie_id: serie.id,
-    });
+    const { error } = await supabase.from("reservations").insert(
+      quand.map((c) => ({
+        dossier_id: dossier,
+        debut: c.debut,
+        fin: c.fin,
+        prix_cents: prixLigne,
+        cree_par_pauline: true,
+        validee_le: new Date().toISOString(),
+        serie_id: serie.id,
+      }))
+    );
 
     if (error) refusees += 1;
     else posees += 1;

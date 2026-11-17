@@ -356,7 +356,7 @@ export default async function FicheEleve({
                         <>
                           <br />
                           <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
-                            {bloc.heures} heures d&apos;affilée
+                            {dureeCourte(bloc.heures)} d&apos;affilée
                           </span>
                         </>
                       ) : null}

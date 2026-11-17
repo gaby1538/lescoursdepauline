@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { regrouperReservations } from "@/lib/dates";
+import { dureeCourte, regrouperReservations } from "@/lib/dates";
 import { clientAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -139,7 +139,7 @@ export async function GET(
       `Réservé par ${s.dossiers?.prenom ?? ""} ${s.dossiers?.nom ?? ""}`.trim(),
       s.dossiers?.email ?? "",
       s.sujet ? `Sujet : ${s.sujet}` : "",
-      bloc.heures > 1 ? `${bloc.heures} heures d'affilée` : "",
+      bloc.heures > 1 ? `${dureeCourte(bloc.heures)} d'affilée` : "",
       aValider ? "⚠ Demande en attente de votre validation." : "",
       enAttente ? "⚠ Annulation demandée, en attente de votre réponse." : "",
     ]

@@ -301,14 +301,19 @@ export default async function TableauDeBord({
           .order("debut")
       : { data: [] };
 
+  // Comme dans regrouperReservations : une durée, pas un compte de
+  // lignes. Une séance de deux heures posée d'un bloc en fait une.
+  const duree = (r: { debut: string; fin: string }) =>
+    (Date.parse(r.fin) - Date.parse(r.debut)) / 3600000;
+
   const propositions = new Map<string, { debut: string; fin: string; heures: number }>();
   for (const r of proposes ?? []) {
     const bloc = propositions.get(r.remplace!);
     if (bloc) {
       bloc.fin = r.fin;
-      bloc.heures += 1;
+      bloc.heures += duree(r);
     } else {
-      propositions.set(r.remplace!, { debut: r.debut, fin: r.fin, heures: 1 });
+      propositions.set(r.remplace!, { debut: r.debut, fin: r.fin, heures: duree(r) });
     }
   }
 
@@ -339,14 +344,14 @@ export default async function TableauDeBord({
       dernier.fin === r.debut
     ) {
       dernier.fin = r.fin;
-      dernier.heures += 1;
+      dernier.heures += duree(r);
       dernier.ids.push(r.id);
     } else {
       blocsADecider.push({
         ids: [r.id],
         debut: r.debut,
         fin: r.fin,
-        heures: 1,
+        heures: duree(r),
         demande: r,
       });
     }
@@ -565,7 +570,7 @@ export default async function TableauDeBord({
                         : creneauLong(b.debut)}
                     </p>
                     <span className="etiquette etiquette--attente">
-                      {b.heures > 1 ? `${b.heures} heures` : "1 heure"} — à valider
+                      {dureeCourte(b.heures)} — à valider
                     </span>
                   </div>
 
@@ -704,7 +709,7 @@ export default async function TableauDeBord({
                                 bloc.heures > 1 ? "s" : ""
                               } de ce cours`
                             : bloc.heures > 1
-                              ? `Veut annuler les ${bloc.heures} heures`
+                              ? `Veut annuler les ${dureeCourte(bloc.heures)}`
                               : "Veut annuler ce cours"}
                       </strong>
                       <br />
@@ -718,7 +723,7 @@ export default async function TableauDeBord({
                         <div className="deplacement__cote">
                           <span className="surtitre">Aujourd&apos;hui</span>
                           <p>{blocLong(bloc)}</p>
-                          <span className="deplacement__duree">{bloc.heures} h</span>
+                          <span className="deplacement__duree">{dureeCourte(bloc.heures)}</span>
                         </div>
                         <span className="deplacement__fleche" aria-hidden="true">
                           →
@@ -726,7 +731,7 @@ export default async function TableauDeBord({
                         <div className="deplacement__cote deplacement__cote--neuf">
                           <span className="surtitre">Demandé</span>
                           <p>{blocLong(propose)}</p>
-                          <span className="deplacement__duree">{propose.heures} h</span>
+                          <span className="deplacement__duree">{dureeCourte(propose.heures)}</span>
                         </div>
                       </div>
                     ) : null}
@@ -907,7 +912,7 @@ export default async function TableauDeBord({
                           <>
                             <br />
                             <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
-                              {bloc.heures} heures d&apos;affilée
+                              {dureeCourte(bloc.heures)} d&apos;affilée
                             </span>
                           </>
                         ) : null}

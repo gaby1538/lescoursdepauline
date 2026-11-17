@@ -302,11 +302,19 @@ export function regrouperReservations<
     lignes: T[];
   }[] = [];
 
+  // « heures » est une durée réelle, pas un compte de lignes. Le site
+  // enregistre une ligne par heure, mais rien ne l'y oblige : une
+  // séance posée d'un bloc de deux heures s'affichait « une heure »
+  // parce qu'elle ne faisait qu'une ligne. Ce qu'on veut dire ici,
+  // c'est combien de temps dure le cours.
+  const duree = (r: { debut: string; fin: string }) =>
+    (Date.parse(r.fin) - Date.parse(r.debut)) / 3600000;
+
   for (const r of tries) {
     const dernier = blocs[blocs.length - 1];
     if (dernier && dernier.fin === r.debut && memeNature(dernier.tete, r)) {
       dernier.fin = r.fin;
-      dernier.heures += 1;
+      dernier.heures += duree(r);
       dernier.ids.push(r.id);
       dernier.lignes.push(r);
     } else {
@@ -314,7 +322,7 @@ export function regrouperReservations<
         ids: [r.id],
         debut: r.debut,
         fin: r.fin,
-        heures: 1,
+        heures: duree(r),
         tete: r,
         lignes: [r],
       });
