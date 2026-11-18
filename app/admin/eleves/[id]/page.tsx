@@ -643,57 +643,78 @@ export default async function FicheEleve({
           </button>
         </form>
 
-        <form
-          action={supprimerDossier}
-          className="carte"
-          style={{ marginTop: 18, borderColor: "#dec89b", background: "#fdf8ee" }}
-        >
-          <p className="surtitre" style={{ marginBottom: 12 }}>
-            Supprimer
-          </p>
-          <p style={{ fontSize: 14.5, lineHeight: 1.65, color: "var(--texte-doux)" }}>
-            Le dossier et ses réservations disparaissent. Si des factures ont déjà été
-            émises, le dossier est anonymisé au lieu d&apos;être effacé : les pièces
-            comptables doivent être conservées dix ans, seule l&apos;identité est
-            retirée.
-          </p>
-          <input type="hidden" name="id" value={id} />
-          <label
-            style={{
-              display: "flex",
-              gap: 10,
-              alignItems: "flex-start",
-              marginTop: 16,
-              fontSize: 14.5,
-              color: "var(--texte-doux)",
-            }}
-          >
-            <input type="checkbox" name="bloquer" value="1" style={{ marginTop: 3 }} />
-            <span>
-              Bloquer aussi cette adresse — elle ne pourra plus créer de dossier ni
-              réserver.
-            </span>
-          </label>
-          <div style={{ marginTop: 14 }}>
-            <label htmlFor="motif_blocage" style={etiquette}>
-              Motif du blocage (facultatif)
-            </label>
-            <input
-              id="motif_blocage"
-              name="motif"
-              type="text"
-              placeholder="Réservations fictives"
-              style={saisie}
-            />
+        {/* Supprimer ne se fait presque jamais : archiver répond au cas
+            courant, et garde tout. Le geste reste accessible, mais il
+            ne se présente plus de lui-même. */}
+        <details className="repli-discret repli-discret--bloc" style={{ marginTop: 22 }}>
+          <summary>Supprimer définitivement ce dossier</summary>
+          <div className="repli-discret__corps repli-discret__corps--large">
+            <p
+              style={{
+                fontSize: 14.5,
+                lineHeight: 1.65,
+                color: "var(--texte-doux)",
+                marginBottom: 18,
+              }}
+            >
+              Vous cherchez sans doute <strong>Archiver</strong>, juste au-dessus :
+              la fiche sort des listes et tout est conservé. La suppression ne sert
+              que dans deux cas — un dossier créé par erreur, ou une demande
+              d&apos;effacement de la part de la famille.
+            </p>
+
+            <form action={supprimerDossier}>
+              <p
+                style={{
+                  fontSize: 14.5,
+                  lineHeight: 1.65,
+                  color: "var(--texte-doux)",
+                }}
+              >
+                Le dossier et ses réservations disparaissent. Si des factures ont
+                déjà été émises, le dossier est anonymisé au lieu d&apos;être
+                effacé : les pièces comptables doivent être conservées dix ans,
+                seule l&apos;identité est retirée.
+              </p>
+              <input type="hidden" name="id" value={id} />
+              <label
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "flex-start",
+                    marginTop: 16,
+                    fontSize: 14.5,
+                    color: "var(--texte-doux)",
+                  }}
+                >
+                  <input type="checkbox" name="bloquer" value="1" style={{ marginTop: 3 }} />
+                  <span>
+                    Bloquer aussi cette adresse — elle ne pourra plus créer de dossier ni
+                    réserver.
+                  </span>
+                </label>
+                <div style={{ marginTop: 14 }}>
+                  <label htmlFor="motif_blocage" style={etiquette}>
+                    Motif du blocage (facultatif)
+                  </label>
+                  <input
+                    id="motif_blocage"
+                    name="motif"
+                    type="text"
+                    placeholder="Réservations fictives"
+                    style={saisie}
+                  />
+                </div>
+              <button
+                type="submit"
+                className="bouton bouton--secondaire bouton--compact"
+                style={{ marginTop: 16 }}
+              >
+                Supprimer ce dossier
+              </button>
+            </form>
           </div>
-          <button
-            type="submit"
-            className="bouton bouton--secondaire bouton--compact"
-            style={{ marginTop: 16 }}
-          >
-            Supprimer ce dossier
-          </button>
-        </form>
+        </details>
       </div>
     </section>
   );
