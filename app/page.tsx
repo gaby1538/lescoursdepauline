@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import GrilleTarifs from "@/components/GrilleTarifs";
 import { IDENTITE } from "@/lib/constantes";
 import { IconeAgenda, IconeWhatsapp, IconeCadeau, IconeCoche } from "@/components/Icones";
 
@@ -239,20 +238,25 @@ export default function Accueil() {
         </div>
       </section>
 
-      {/* --------------------------------------------------------- Tarifs */}
+      {/* ------------------------------------------- Le premier échange */}
       <section className="section">
         <div className="conteneur-etroit">
-          <h2 style={{ fontSize: 40, textAlign: "center", marginBottom: 14 }}>Tarifs</h2>
+          <h2 style={{ fontSize: 40, textAlign: "center", marginBottom: 14 }}>
+            Le premier échange
+          </h2>
           <p
             className="plomb"
-            style={{ textAlign: "center", maxWidth: 520, margin: "0 auto 44px" }}
+            style={{ textAlign: "center", maxWidth: 560, margin: "0 auto 36px" }}
           >
-            Deux niveaux de tarif, et une réduction pour un suivi régulier. Rien à
-            payer sur le site.
+            Un appel pour faire connaissance : le niveau, les attentes, le rythme qui
+            convient. On y règle ensemble tout ce qu&apos;il faut savoir avant de
+            commencer. C&apos;est gratuit et sans engagement.
           </p>
-
-          <GrilleTarifs />
-
+          <p style={{ textAlign: "center" }}>
+            <Link href="/reserver" className="action action--foret action--grand">
+              Prendre un premier cours
+            </Link>
+          </p>
         </div>
       </section>
 

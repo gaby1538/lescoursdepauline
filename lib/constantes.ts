@@ -42,13 +42,6 @@ export const GROUPES = {
 
 export type Groupe = keyof typeof GROUPES;
 
-/** Repli d'affichage si la base n'est pas joignable. La source de vérité
- *  reste la table `tarifs`. */
-export const TARIFS_PAR_DEFAUT = [
-  { groupe: "college_seconde", seance: 4000, regulier: 3500 },
-  { groupe: "premiere_terminale", seance: 4500, regulier: 3900 },
-] as const;
-
 export function euros(centimes: number): string {
   return `${(centimes / 100).toLocaleString("fr-FR", {
     minimumFractionDigits: centimes % 100 === 0 ? 0 : 2,

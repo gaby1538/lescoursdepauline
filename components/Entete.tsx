@@ -2,7 +2,6 @@ import Link from "next/link";
 
 const liens = [
   { href: "/#cours", libelle: "Les cours" },
-  { href: "/tarifs", libelle: "Tarifs" },
   { href: "/#a-propos", libelle: "À propos" },
   { href: "/mon-espace", libelle: "Mon espace" },
 ];

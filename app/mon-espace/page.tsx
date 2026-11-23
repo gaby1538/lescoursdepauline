@@ -214,11 +214,6 @@ export default async function MonEspace({
                       : "Une heure"}
                     {" · "}
                     {dansCombien(prochain.tete.debut)}
-                    {prochain.tete.validee_le
-                      ? ` · ${euros(
-                          prochain.lignes.reduce((t, l) => t + l.prix_cents, 0)
-                        )}`
-                      : ""}
                     {prochain.tete.sujet ? ` · ${prochain.tete.sujet}` : ""}
                   </p>
 
@@ -433,9 +428,7 @@ export default async function MonEspace({
                             {r.refus_motif
                               ? ` — ${r.refus_motif}`
                               : r.validee_le
-                                ? ` · ${euros(
-                                    bloc.lignes.reduce((t, l) => t + l.prix_cents, 0)
-                                  )}`
+                                ? ""
                                 : " · non facturé"}
                           </p>
                         </div>

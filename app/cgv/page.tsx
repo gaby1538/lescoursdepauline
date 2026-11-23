@@ -54,24 +54,23 @@ export default function CGV() {
       </p>
       <p>
         L&apos;accompagnement entre deux séances — une question par message, un
-        exercice à vérifier — est compris dans le tarif horaire, dans des limites
+        exercice à vérifier — est compris dans la prestation, dans des limites
         raisonnables.
       </p>
 
-      <h2>4. Tarifs</h2>
+      <h2>4. Conditions financières</h2>
       <p>
-        Les tarifs en vigueur sont ceux affichés sur la page{" "}
-        <Link href="/tarifs">Tarifs</Link> au moment de la réservation. Ils varient
-        selon le niveau de l&apos;élève, et un tarif réduit s&apos;applique dans le
-        cadre d&apos;un suivi régulier, dont les conditions sont convenues
-        directement avec la Prestataire.
+        Le site ne publie aucun montant. Les conditions financières sont convenues
+        directement entre le Client et la Prestataire avant la première séance, en
+        fonction du niveau de l&apos;élève, de la durée et du rythme des séances.
       </p>
       <p>
-        Le tarif applicable à une séance est celui en vigueur au moment où elle est
-        réservée. Il est figé à cet instant : une évolution ultérieure des tarifs
-        reste sans effet sur les séances déjà réservées.
+        Le montant applicable à une séance est celui convenu au moment où elle est
+        réservée. Il est figé à cet instant : une évolution ultérieure reste sans
+        effet sur les séances déjà réservées. Chaque facture rappelle le détail des
+        séances et le montant dû.
       </p>
-      <p>Les prix sont exprimés en euros, nets de taxe.</p>
+      <p>Les montants sont exprimés en euros, nets de taxe.</p>
 
       <h2>5. Réservation</h2>
       <p>

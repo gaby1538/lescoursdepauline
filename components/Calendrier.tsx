@@ -386,8 +386,7 @@ export default function Calendrier({
                   <strong style={{ color: "var(--foret)" }}>
                     Rien à payer maintenant.
                   </strong>{" "}
-                  Le tarif horaire dépend du niveau —{" "}
-                  <Link href="/tarifs">voir les tarifs</Link>. La facture arrive en fin
+                  La facture arrive en fin
                   de mois, à régler sous 30 jours par Wero ou virement. Le premier
                   échange est gratuit.
                 </>

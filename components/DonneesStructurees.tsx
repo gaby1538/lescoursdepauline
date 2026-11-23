@@ -1,4 +1,4 @@
-import { IDENTITE, TARIFS_PAR_DEFAUT } from "@/lib/constantes";
+import { IDENTITE } from "@/lib/constantes";
 
 const SITE =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://lescoursdepauline.com";
@@ -12,7 +12,9 @@ const SITE =
  * ces informations directement dans ses résultats.
  *
  * Tout ce qui est déclaré ici doit se retrouver à l'écran : annoncer un
- * prix que la page n'affiche pas est une faute que Google sanctionne.
+ * Aucun prix n'y figure : le site n'en publie pas, et déclarer un
+ * montant qu'aucune page n'affiche est une faute que Google
+ * sanctionne.
  */
 export default function DonneesStructurees() {
   const donnees = {
@@ -82,41 +84,6 @@ export default function DonneesStructurees() {
           serviceUrl: `${SITE}/reserver`,
           availableLanguage: { "@type": "Language", name: "Français" },
         },
-        // Les mêmes montants que la grille affichée sur la page.
-        offers: [
-          {
-            "@type": "Offer",
-            name: "Collège et seconde — à la séance",
-            price: (TARIFS_PAR_DEFAUT[0].seance / 100).toFixed(2),
-            priceCurrency: "EUR",
-            availability: "https://schema.org/InStock",
-            url: `${SITE}/tarifs`,
-          },
-          {
-            "@type": "Offer",
-            name: "Collège et seconde — suivi régulier",
-            price: (TARIFS_PAR_DEFAUT[0].regulier / 100).toFixed(2),
-            priceCurrency: "EUR",
-            availability: "https://schema.org/InStock",
-            url: `${SITE}/tarifs`,
-          },
-          {
-            "@type": "Offer",
-            name: "Première et terminale — à la séance",
-            price: (TARIFS_PAR_DEFAUT[1].seance / 100).toFixed(2),
-            priceCurrency: "EUR",
-            availability: "https://schema.org/InStock",
-            url: `${SITE}/tarifs`,
-          },
-          {
-            "@type": "Offer",
-            name: "Première et terminale — suivi régulier",
-            price: (TARIFS_PAR_DEFAUT[1].regulier / 100).toFixed(2),
-            priceCurrency: "EUR",
-            availability: "https://schema.org/InStock",
-            url: `${SITE}/tarifs`,
-          },
-        ],
       },
     ],
   };

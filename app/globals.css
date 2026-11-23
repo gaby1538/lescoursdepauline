@@ -211,23 +211,6 @@ section[id] { scroll-margin-top: 96px; }
 }
 .tableau-defilant { overflow-x: auto; }
 
-table.tarifs { width: 100%; border-collapse: collapse; min-width: 520px; }
-table.tarifs thead tr { border-bottom: 1px solid var(--bordure); }
-table.tarifs th {
-  font-size: 11.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--texte-gris);
-  font-weight: 500;
-  text-align: right;
-  padding: 18px 20px;
-}
-table.tarifs th:first-child { text-align: left; padding-left: 28px; }
-table.tarifs th:last-child { color: var(--or-texte); padding-right: 28px; }
-table.tarifs td { padding: 24px 20px; text-align: right; font-family: var(--serif); font-size: 28px; color: var(--foret); }
-table.tarifs td:first-child { text-align: left; padding-left: 28px; font-family: var(--sans); font-size: 16.5px; }
-table.tarifs td:last-child { color: var(--or); padding-right: 28px; }
-table.tarifs tbody tr + tr { border-top: 1px solid var(--bordure-douce); }
 
 /* ------------------------------------------------------------------ */
 /*  Téléphone                                                          */
@@ -1160,79 +1143,6 @@ table.liste .droite { text-align: right; }
 
 .repli__corps { padding-top: 18px; }
 
-/* ------------------------------------------------------------------ */
-/*  Tarifs                                                             */
-/* ------------------------------------------------------------------ */
-
-.tarifs-cartes {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-}
-
-.tarif {
-  padding: 26px 24px 24px;
-  border: 1px solid var(--bordure);
-  border-radius: 6px;
-  background: var(--carte);
-}
-
-.tarif__niveau {
-  font-family: var(--serif);
-  font-size: 21px;
-  line-height: 1.25;
-  color: var(--foret);
-}
-
-.tarif__detail {
-  margin-top: 5px;
-  font-size: 13.5px;
-  line-height: 1.5;
-  color: var(--texte-gris);
-}
-
-.tarif__lignes {
-  margin-top: 20px;
-  display: grid;
-  gap: 14px;
-}
-
-.tarif__ligne {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding-top: 14px;
-  border-top: 1px solid var(--bordure-douce);
-}
-
-.tarif__prix {
-  font-family: var(--serif);
-  font-size: 30px;
-  line-height: 1;
-  color: var(--foret);
-  white-space: nowrap;
-}
-
-.tarif__quoi {
-  font-size: 14.5px;
-  line-height: 1.45;
-  color: var(--texte-doux);
-}
-
-.tarif__note {
-  display: block;
-  margin-top: 3px;
-  font-size: 12.5px;
-  color: var(--texte-gris);
-}
-
-.tarif__ligne--accent .tarif__prix { color: var(--or); }
-
-@media (max-width: 760px) {
-  .tarifs-cartes { grid-template-columns: 1fr; gap: 14px; }
-  .tarif { padding: 22px 20px 20px; }
-  .tarif__prix { font-size: 27px; }
-}
 
 /* Le recours : présent, mais au second plan. On n'invite pas à bricoler
    une facture, on prévoit seulement le cas où il le faut. */
@@ -1936,15 +1846,6 @@ table.liste .droite { text-align: right; }
   color: var(--foret);
 }
 
-/* La mention sous la grille des tarifs : lisible, mais à sa place. */
-.tarifs-mention {
-  margin: 18px auto 0;
-  max-width: 64ch;
-  text-align: center;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--texte-gris);
-}
 
 /* =====================================================================
    L'état d'une facture, modifiable là où on le lit.
