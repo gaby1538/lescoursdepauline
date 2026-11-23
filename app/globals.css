@@ -2176,3 +2176,46 @@ table.liste .droite { text-align: right; }
   color: var(--foret);
   font-variant-numeric: tabular-nums;
 }
+
+/* Le tarif d'une séance, corrigeable sur place.
+   Un champ dans un tableau doit rester un détail : il se glisse à la
+   taille du texte qu'il remplace, et ne pousse pas la colonne. */
+.prix-vif {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+}
+.prix-vif__champ {
+  width: 58px;
+  padding: 3px 7px;
+  border: 1px solid var(--bordure);
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  color: var(--texte);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.prix-vif__champ:focus-visible {
+  outline: 2px solid var(--or);
+  outline-offset: 1px;
+}
+.prix-vif__unite { font-size: 13px; color: var(--texte-gris); }
+.prix-vif__ok {
+  padding: 3px 9px;
+  border: 1px solid var(--bordure);
+  border-radius: 999px;
+  background: var(--creme-fonce);
+  color: var(--texte-doux);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.prix-vif__ok:hover { border-color: var(--foret); color: var(--foret); }
+.prix-vif__total {
+  font-size: 13px;
+  color: var(--texte-gris);
+  font-variant-numeric: tabular-nums;
+}

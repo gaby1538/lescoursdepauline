@@ -5,7 +5,7 @@ import { dossierConnecte } from "@/lib/session";
 import { clientAdmin } from "@/lib/supabase";
 import { seDeconnecter } from "@/app/compte/actions";
 import DemandeAnnulation from "./DemandeAnnulation";
-import { blocLong, creneauLong, moisLong, periodeLisible, regrouperReservations } from "@/lib/dates";
+import { blocLong, creneauLong, dureeCourte, moisLong, periodeLisible, regrouperReservations } from "@/lib/dates";
 import { euros } from "@/lib/constantes";
 
 export const metadata: Metadata = { title: "Mon espace" };
@@ -210,10 +210,15 @@ export default async function MonEspace({
                   </p>
                   <p className="hero__detail">
                     {prochain.heures > 1
-                      ? `${prochain.heures} heures d'affilée`
+                      ? `${dureeCourte(prochain.heures)} d'affilée`
                       : "Une heure"}
                     {" · "}
                     {dansCombien(prochain.tete.debut)}
+                    {prochain.tete.validee_le
+                      ? ` · ${euros(
+                          prochain.lignes.reduce((t, l) => t + l.prix_cents, 0)
+                        )}`
+                      : ""}
                     {prochain.tete.sujet ? ` · ${prochain.tete.sujet}` : ""}
                   </p>
 
@@ -338,8 +343,13 @@ export default async function MonEspace({
                             </p>
                             <p className="seance-eleve__detail">
                               {bloc.heures > 1
-                                ? `${bloc.heures} heures d'affilée`
+                                ? `${dureeCourte(bloc.heures)} d'affilée`
                                 : "Une heure"}
+                              {r.validee_le
+                                ? ` · ${euros(
+                                    bloc.lignes.reduce((t, l) => t + l.prix_cents, 0)
+                                  )}`
+                                : ""}
                               {r.sujet ? ` · ${r.sujet}` : ""}
                             </p>
                           </div>
@@ -428,7 +438,9 @@ export default async function MonEspace({
                             {r.refus_motif
                               ? ` — ${r.refus_motif}`
                               : r.validee_le
-                                ? ""
+                                ? ` · ${euros(
+                                    bloc.lignes.reduce((t, l) => t + l.prix_cents, 0)
+                                  )}`
                                 : " · non facturé"}
                           </p>
                         </div>

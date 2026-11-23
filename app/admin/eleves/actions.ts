@@ -824,3 +824,63 @@ export async function arreterSerie(formulaire: FormData): Promise<void> {
   revalidatePath("/admin/horaires");
   retour(`/admin/eleves/${dossier}`, `?ok=arretee&retirees=${count ?? 0}`);
 }
+
+/**
+ * Corriger le prix d'une séance.
+ *
+ * Le tarif d'un élève est celui de sa fiche, mais une séance particulière
+ * peut valoir autre chose : une heure offerte, un stage, un rattrapage
+ * plus court. L'élève voit ce montant dans son espace, donc il doit
+ * pouvoir être juste — et il ne l'est pas toujours du premier coup.
+ *
+ * Le champ porte le tarif HORAIRE : un bloc de deux heures est fait de
+ * deux lignes, et chacune reçoit ce montant. C'est ce qui fait qu'une
+ * facture dit « 2 × 40 € » et retombe sur son total.
+ */
+export async function modifierPrixCours(formulaire: FormData): Promise<void> {
+  await exigerAdmin();
+
+  const ids = identifiants(formulaire);
+  const dossier = String(formulaire.get("dossier") ?? "");
+  if (ids.length === 0 || !dossier) retour("/admin/eleves");
+
+  const cents = centimes(String(formulaire.get("prix") ?? ""));
+  if (cents === null) retour(`/admin/eleves/${dossier}`, "?erreur=prix");
+
+  const supabase = clientAdmin();
+
+  // Une séance déjà portée sur une facture ne change plus de prix : la
+  // facture ferait foi contre elle, et une facture émise ne se modifie
+  // pas. La correction passe alors par la facture elle-même.
+  const { data: figees } = await supabase
+    .from("reservations")
+    .select("id")
+    .in("id", ids)
+    .not("facture_id", "is", null);
+
+  if (figees && figees.length > 0) {
+    retour(`/admin/eleves/${dossier}`, "?erreur=deja_facture");
+  }
+
+  const { error } = await supabase
+    .from("reservations")
+    .update({ prix_cents: cents })
+    .in("id", ids);
+
+  if (error) {
+    console.error("modification du prix d'une séance", error);
+    retour(`/admin/eleves/${dossier}`, "?erreur=prix");
+  }
+
+  await supabase.from("journal").insert(
+    ids.map((unId) => ({
+      acteur: "pauline",
+      dossier_id: dossier,
+      objet: "reservation",
+      objet_id: unId,
+      action: `prix:${cents}`,
+    }))
+  );
+
+  retour(`/admin/eleves/${dossier}`, "?ok=prix");
+}

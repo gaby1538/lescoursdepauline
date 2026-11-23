@@ -9,6 +9,7 @@ import { supprimerDocument } from "../../documents/actions";
 import DepotDocument from "../../documents/DepotDocument";
 import {
   archiverEleve,
+  modifierPrixCours,
   arreterSerie,
   basculerSuspension,
   annulerCours,
@@ -62,7 +63,7 @@ export default async function FicheEleve({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const { id } = await params;
-  const { ok, posees, retirees } = await searchParams;
+  const { ok, erreur, posees, retirees } = await searchParams;
   const supabase = clientAdmin();
 
   const { data: dossier } = await supabase
@@ -230,6 +231,24 @@ export default async function FicheEleve({
           </p>
         )}
         {ok === "cours" && <p className="succes">Le cours est posé.</p>}
+        {ok === "prix" && (
+          <p className="succes">
+            Le tarif de cette séance est enregistré. L&apos;élève le voit dans son
+            espace.
+          </p>
+        )}
+        {erreur === "prix" && (
+          <p className="alerte">
+            Ce montant n&apos;est pas valide. Écrivez-le en euros : 39, ou 39,50.
+          </p>
+        )}
+        {erreur === "deja_facture" && (
+          <p className="alerte">
+            Cette séance figure déjà sur une facture : son prix ne change plus ici.
+            Une facture émise ne se modifie pas — corrigez-la depuis les factures,
+            ou émettez une facture rectificative.
+          </p>
+        )}
         {ok === "serie" && (
           <p className="succes">
             {posees ?? "0"} séance{Number(posees ?? 0) > 1 ? "s" : ""} posée
@@ -397,10 +416,35 @@ export default async function FicheEleve({
                             : LIBELLE[c.statut] ?? c.statut}
                       </span>
                       <br />
-                      <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
-                        {euros(total)}
-                        {c.facture_id ? " · facturé" : ""}
-                      </span>
+                      {/* L'élève voit ce montant dans son espace : il doit
+                          pouvoir être corrigé ici, séance par séance. Une
+                          fois sur une facture, il se fige — la facture
+                          ferait foi contre lui. */}
+                      {c.facture_id ? (
+                        <span style={{ fontSize: 13, color: "var(--texte-gris)" }}>
+                          {euros(total)} · facturé
+                        </span>
+                      ) : (
+                        <form action={modifierPrixCours} className="prix-vif">
+                          <input type="hidden" name="id" value={bloc.ids.join(",")} />
+                          <input type="hidden" name="dossier" value={id} />
+                          <input
+                            name="prix"
+                            type="text"
+                            inputMode="decimal"
+                            defaultValue={(c.prix_cents / 100).toString()}
+                            aria-label={`Tarif horaire du cours du ${creneauLong(c.debut)}`}
+                            className="prix-vif__champ"
+                          />
+                          <span className="prix-vif__unite">€/h</span>
+                          <button type="submit" className="prix-vif__ok">
+                            OK
+                          </button>
+                          {bloc.heures > 1 && (
+                            <span className="prix-vif__total">{euros(total)}</span>
+                          )}
+                        </form>
+                      )}
                     </td>
                     <td className="droite">
                       {c.statut === "reservee" && !c.validee_le && (
